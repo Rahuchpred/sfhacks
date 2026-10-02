@@ -23,9 +23,9 @@ Source docs: [gator-radar.md](gator-radar.md), [hackathon-rules.md](../reference
 | UI | Tailwind + shadcn/ui | Asked for. Fast, consistent components |
 | Font | Geist Sans + Geist Mono via `next/font/google` | Asked for |
 | AI | **Gemma 4** through the Gemini API, using the `@google/genai` SDK and a free AI Studio key | No credits or card needed. Qualifies for the Gemma challenge |
-| Data | Firestore (free Spark plan) | Realtime listeners make the map live for free |
-| Files | None. Images go to the model as base64 and are stored as small data URLs or not at all | Cloud Storage needs billing on new projects |
-| Auth | Firebase Auth, anonymous sign-in | No login screen to build. SFSU SSO is the pilot story |
+| Data | Supabase Postgres (free plan) with Realtime | Live map updates. Open source |
+| Files | Supabase Storage, one public bucket `uploads` | 1 GB free, gives flyer and food photos real URLs |
+| Auth | Supabase Auth, anonymous sign-in | No login screen to build. SFSU SSO is the pilot story |
 | Map | MapLibre GL with OpenStreetMap tiles, via `react-map-gl/maplibre` | Free, no key, fits the open-source track |
 | Hosting | Vercel free tier | Cloud Run needs a billing account |
 
@@ -45,8 +45,9 @@ Decision (Oct 2): build on the free tier only. Nothing here needs a billing acco
 | Piece | Used for |
 |---|---|
 | Gemma 4 (image + text input) | Flyer or pasted text to event, organizer data check, food photo estimate, description and tags |
-| Firestore | Events, food rescues, claims |
-| Firebase Auth | Anonymous users |
+| Supabase Postgres + Realtime | Events, food rescues, claims, live updates |
+| Supabase Storage | Flyer and food photos |
+| Supabase Auth | Anonymous users |
 | Google AI Studio | The API key, and prompt drafting before code |
 
 Test in the first ten minutes, do not guess:
@@ -98,13 +99,13 @@ Rules: purple is for events, gold is for food, so the map reads at a glance. Gol
 
 6. **Shared types and contracts** (the most important step, see below).
 
-7. **Firebase**: `src/lib/firebase.ts` (client) and `src/lib/firebase-admin.ts` (server), anonymous sign-in on load.
+7. **Supabase**: apply the schema as one migration (tables, RLS policies, the `claim_portion` function, Realtime on `events` and `food_rescues`, the `uploads` bucket). Add `src/lib/supabase/client.ts` and `src/lib/supabase/server.ts` with `@supabase/ssr`, and anonymous sign-in on load. Generate `src/lib/database.types.ts`.
 
 8. **AI client**: `src/lib/ai.ts` wraps `@google/genai` with `GEMINI_API_KEY` and `AI_MODEL`, exposing one helper, `generateJson(prompt, parts, zodSchema)`, which parses, validates and retries once. Mock mode returns fixtures from `src/lib/fixtures/`.
 
 9. **Map**: `<CampusMap />` with MapLibre and OpenStreetMap tiles, centered on 37.7241, -122.4799, zoom 16. Keep the OSM attribution visible.
 
-10. **Seed**: `scripts/seed.ts` writes about 15 SFSU buildings and 8 sample events to Firestore.
+10. **Seed**: `scripts/seed.ts` writes about 15 SFSU buildings and 8 sample events to Supabase.
 
 11. **Deploy**: `vercel --prod` with the env vars set. Open the URL on a phone.
 
@@ -112,7 +113,9 @@ Rules: purple is for events, gold is for food, so the map reads at a glance. Gol
 
 ## Contracts (written in step 6, frozen after)
 
-### Firestore collections
+### Database tables
+
+Tables are `buildings`, `events`, `food_rescues`, `claims`, with snake_case columns. The app uses these camelCase types, mapped in one place (`src/lib/db.ts`).
 
 ```ts
 type Building = { id: string; name: string; aliases: string[]; lat: number; lng: number };
@@ -128,7 +131,7 @@ type CampusEvent = {
   endsAt: string;
   tags: string[];
   hasFood: boolean;
-  flyerUrl: string | null;  // data URL, downscaled to under 200 KB
+  flyerUrl: string | null;  // Supabase Storage public URL
   source: "organizer" | "flyer" | "seed";
   createdBy: string;  // uid
 };
@@ -138,7 +141,7 @@ type FoodRescue = {
   eventId: string | null;
   buildingId: string;
   room: string | null;
-  photoUrl: string;       // data URL, downscaled to under 200 KB
+  photoUrl: string;       // Supabase Storage public URL
   items: string;          // "cheese pizza, veggie wraps"
   portions: number;
   portionsLeft: number;
@@ -151,14 +154,16 @@ type FoodRescue = {
 type Claim = { id: string; rescueId: string; uid: string; createdAt: string };
 ```
 
+Row level security: anyone can read `buildings`, `events` and `food_rescues`. A signed-in (anonymous) user can insert events and rescues as themselves and update only their own. Claims are written only through `claim_portion`.
+
 ### API routes
 
 | Route | Input | Output |
 |---|---|---|
-| `POST /api/ai/extract-event` | `{ text?: string; imageBase64?: string }` | `{ event: Partial<CampusEvent>; missing: string[]; confidence: number }` |
+| `POST /api/ai/extract-event` | `{ text?: string; imageUrl?: string }` | `{ event: Partial<CampusEvent>; missing: string[]; confidence: number }` |
 | `POST /api/ai/check-event` | `{ event: Partial<CampusEvent> }` | `{ ok: boolean; issues: { field: string; message: string; severity: "error" \| "warn" }[]; questions: string[] }` |
-| `POST /api/ai/estimate-food` | `{ imageBase64: string; postedAt: string }` | `{ items: string; portions: number; dietary: string[]; safeUntil: string; note: string }` |
-| `POST /api/claims` | `{ rescueId: string }` | `{ ok: boolean; portionsLeft: number }` (Firestore transaction) |
+| `POST /api/ai/estimate-food` | `{ imageUrl: string; postedAt: string }` | `{ items: string; portions: number; dietary: string[]; safeUntil: string; note: string }` |
+| `POST /api/claims` | `{ rescueId: string }` | `{ ok: boolean; portionsLeft: number }` (calls the `claim_portion` SQL function, which locks the row so portions never go below zero and one user claims once) |
 
 ### Folder ownership
 
@@ -167,12 +172,12 @@ type Claim = { id: string; rescueId: string; uid: string; createdAt: string };
 | `src/app/(student)/map`, `src/components/map` | Thread A |
 | `src/app/api/ai`, `src/lib/ai.ts`, `src/lib/prompts` | Thread B |
 | `src/app/(student)/food`, `src/app/post`, `src/app/api/claims` | Thread C |
-| `src/lib/types.ts`, `src/components/ui`, `globals.css`, `layout.tsx` | Frozen. Change only by asking in the main thread |
+| `src/lib/types.ts`, `src/lib/db.ts`, `supabase/migrations`, `src/components/ui`, `globals.css`, `layout.tsx` | Frozen. Change only by asking in the main thread |
 
 ## Needed from you before 11:00
 
 1. A free Gemini API key from Google AI Studio (aistudio.google.com), put in `.env.local` as `GEMINI_API_KEY`. Do not paste it in chat
-2. A Firebase project on the free Spark plan, with Firestore and Anonymous Auth turned on, and its web config
+2. A Supabase project for this app (free plan allows two active projects per account). Anonymous sign-ins turned on under Authentication settings
 3. Yes or no on making the repo public (required for the open-source track)
 
 ## Cut line
