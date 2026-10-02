@@ -1,10 +1,15 @@
 "use client";
 
+// Reference: Sweatpals "Create event" (Mobbin, web): cover image beside a short
+// stack of rows, a large name field and one Publish button. The date and time
+// block follows Square "New project" (see when-picker.tsx).
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import Link from "next/link";
 import {
   AlignLeft,
   CircleCheck,
+  Clock,
+  DollarSign,
   Loader2,
   MapPin,
   Sparkles,
@@ -16,125 +21,136 @@ import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { checkEventDraft, EVENT_TAGS } from "@/lib/checks";
-import { createEvent, updateEvent } from "@/lib/db";
+import { checkEventDraft, EVENT_TAGS, FOOD_OPTIONS } from "@/lib/checks";
+import { createEvent, listMyClubs, updateEvent } from "@/lib/db";
 import type {
   Building,
   CampusEvent,
-  CheckEventRequest,
-  CheckEventResponse,
   EventDraft,
   EventIssue,
   ExtractEventRequest,
   ExtractEventResponse,
+  MyClub,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { fieldControlProps, IssueLine, selectClass } from "./field";
+import { fieldControlProps, IssueLine } from "./field";
 import {
+  daysBetween,
   errorMessage,
-  fromLocalInput,
+  pacificIso,
+  pacificParts,
   postJson,
-  toLocalInput,
   useLeaveWarning,
 } from "./form-utils";
 import { ImageDrop } from "./image-drop";
-import { IssueList } from "./issue-list";
+import { WhenPicker, withStart, type When } from "./when-picker";
 
 type Values = {
   title: string;
+  clubId: string | null; // null is "Just me"
   clubName: string;
   buildingId: string;
   room: string;
-  startsAt: string; // datetime-local value
-  endsAt: string;
+  when: When;
   description: string;
   tags: string[];
   hasFood: boolean;
+  foodItems: string[];
+  cost: string; // dollars as typed, "" when not given
 };
-type FieldKey = keyof Values;
+
+const NO_WHEN: When = { date: "", start: "", end: "", endDays: 0 };
 
 const EMPTY: Values = {
   title: "",
+  clubId: null,
   clubName: "",
   buildingId: "",
   room: "",
-  startsAt: "",
-  endsAt: "",
+  when: NO_WHEN,
   description: "",
   tags: [],
   hasFood: false,
+  foodItems: [],
+  cost: "",
 };
+
+// Start and end instants to the one date, start time and end time the form shows.
+function toWhen(startsAt: string | null, endsAt: string | null): When | null {
+  const start = pacificParts(startsAt);
+  if (!start) return null;
+  const end = pacificParts(endsAt);
+  if (!end) return withStart({ ...NO_WHEN, date: start.date }, start.time);
+  return {
+    date: start.date,
+    start: start.time,
+    end: end.time,
+    endDays: Math.max(0, daysBetween(start.date, end.date)),
+  };
+}
 
 function fromEvent(event: CampusEvent): Values {
   return {
     title: event.title,
+    clubId: event.clubId,
     clubName: event.clubName,
     buildingId: event.buildingId,
     room: event.room ?? "",
-    startsAt: toLocalInput(event.startsAt),
-    endsAt: toLocalInput(event.endsAt),
+    when: toWhen(event.startsAt, event.endsAt) ?? NO_WHEN,
     description: event.description,
     tags: event.tags,
     hasFood: event.hasFood,
+    foodItems: event.foodItems,
+    cost: event.cost === null ? "" : String(event.cost),
   };
 }
 
-// The model does not always use our exact field names.
-const FIELD_ALIASES: Record<string, FieldKey> = {
-  title: "title",
-  name: "title",
-  clubname: "clubName",
-  club: "clubName",
-  organizer: "clubName",
-  buildingid: "buildingId",
-  building: "buildingId",
-  location: "buildingId",
-  room: "room",
-  startsat: "startsAt",
-  start: "startsAt",
-  date: "startsAt",
-  time: "startsAt",
-  endsat: "endsAt",
-  end: "endsAt",
-  description: "description",
-  tags: "tags",
-  hasfood: "hasFood",
-  food: "hasFood",
-};
-
-function resolveField(name: string): FieldKey | null {
-  return FIELD_ALIASES[name.toLowerCase().replace(/[^a-z]/g, "")] ?? null;
-}
-
 function toDraft(values: Values): EventDraft {
+  const { date, start, end, endDays } = values.when;
   return {
     title: values.title.trim() || null,
     description: values.description.trim() || null,
     clubName: values.clubName.trim() || null,
     buildingId: values.buildingId || null,
     room: values.room.trim() || null,
-    startsAt: fromLocalInput(values.startsAt),
-    endsAt: fromLocalInput(values.endsAt),
+    startsAt: pacificIso(date, start),
+    endsAt: pacificIso(date, end, endDays),
     tags: values.tags,
     hasFood: values.hasFood,
+    foodItems: values.hasFood ? values.foodItems : [],
   };
 }
 
-const issueKey = (issue: EventIssue) => `${issue.field}|${issue.message}`;
-
-// The exact rules from src/lib/checks.ts, run in the browser so a blocking
-// problem shows the moment it is typed. Only these can block publishing.
-function codeIssues(values: Values, buildings: Building[]): EventIssue[] {
-  if (buildings.length === 0) return [];
-  const issues = checkEventDraft(toDraft(values), buildings);
-  if (!values.clubName.trim()) {
-    issues.push({ field: "clubName", message: "Add the club or organizer.", severity: "error" });
-  }
-  return issues;
+// Digits and one decimal point, two places at most.
+function cleanCost(value: string): string {
+  const [whole, ...rest] = value.replace(/[^\d.]/g, "").split(".");
+  return rest.length > 0 ? `${whole}.${rest.join("").slice(0, 2)}` : whole;
 }
 
-type CheckState = "idle" | "checking" | "fresh" | "stale" | "failed";
+function toCost(value: string): number | null {
+  const cost = Number(value);
+  return value !== "" && Number.isFinite(cost) ? cost : null;
+}
+
+const JUST_ME = "me";
+// Pasted notes are read once the organizer stops typing for this long.
+const NOTES_PAUSE_MS = 1500;
+const NOTES_MIN_LENGTH = 15;
+
+type Reading = { state: "idle" | "reading" | "done" | "failed"; from: "flyer" | "notes" };
+type Group = "title" | "club" | "when" | "where";
+
+const issueKey = (issue: EventIssue) => `${issue.field}|${issue.message}`;
+const inputKey = (flyerUrl: string | null, text: string) => `${flyerUrl ?? ""}\n${text.trim()}`;
 
 export type EventFormProps = {
   buildings: Building[];
@@ -147,159 +163,168 @@ export type EventFormProps = {
 export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormProps) {
   const editing = initial !== undefined;
   const [startValues] = useState<Values>(() => (initial ? fromEvent(initial) : EMPTY));
+  const formRef = useRef<HTMLFormElement>(null);
 
   const [flyerUrl, setFlyerUrl] = useState<string | null>(initial?.flyerUrl ?? null);
   const [uploading, setUploading] = useState(false);
   const [text, setText] = useState("");
-  const [extracting, setExtracting] = useState(false);
-  const [extractError, setExtractError] = useState<string | null>(null);
-  const [confidence, setConfidence] = useState<number | null>(null);
+  const [reading, setReading] = useState<Reading>({ state: "idle", from: "notes" });
+  const [readError, setReadError] = useState<string | null>(null);
+  // What the AI last read. Null until the first read, which is the only automatic one.
+  const [readKey, setReadKey] = useState<string | null>(null);
+  const readId = useRef(0);
 
   const [values, setValues] = useState<Values>(startValues);
-  const [missing, setMissing] = useState<Set<FieldKey>>(new Set());
-
-  // Model findings and questions from the last check. Always warnings.
-  const [check, setCheck] = useState<Pick<CheckEventResponse, "issues" | "questions"> | null>(null);
-  // An event being edited is checked right away, a new one once there is something to check.
-  const [checkState, setCheckState] = useState<CheckState>(editing ? "stale" : "idle");
-  const [checkError, setCheckError] = useState<string | null>(null);
-  const checkId = useRef(0);
+  const [clubs, setClubs] = useState<MyClub[]>([]);
+  // Empty required fields are only marked after the AI draft or a publish attempt.
+  const [showMissing, setShowMissing] = useState(editing);
 
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [published, setPublished] = useState<CampusEvent | null>(null);
 
-  async function runCheck(current: Values) {
-    const id = ++checkId.current;
-    setCheckState("checking");
-    setCheckError(null);
-    try {
-      const result = await postJson<CheckEventRequest, CheckEventResponse>(
-        "/api/ai/check-event",
-        { event: toDraft(current) },
-      );
-      if (id !== checkId.current) return;
-      // The route repeats the code checks. Those are shown live from the
-      // browser, so keep only what the model added.
-      const known = new Set(codeIssues(current, buildings).map(issueKey));
-      setCheck({
-        issues: result.issues
-          .filter((issue) => !known.has(issueKey(issue)))
-          .map((issue) => ({ ...issue, severity: "warn" as const })),
-        questions: result.questions,
-      });
-      setCheckState("fresh");
-    } catch (error) {
-      if (id !== checkId.current) return;
-      setCheckError(errorMessage(error, "The check did not respond."));
-      setCheckState("failed");
-    }
-  }
-
-  // After the first check, every edit reruns it once the organizer pauses.
-  const recheck = useEffectEvent(() => runCheck(values));
   useEffect(() => {
-    if (checkState !== "stale") return;
-    const timer = setTimeout(recheck, 1200);
-    return () => clearTimeout(timer);
-  }, [checkState, values]);
+    let cancelled = false;
+    listMyClubs()
+      .then((list) => {
+        if (!cancelled) setClubs(list);
+      })
+      .catch(() => {
+        // "Just me" still works without the club list.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  function markEdited() {
-    if (checkState !== "idle") {
-      checkId.current++; // drop any reply for the old values
-      setCheckState("stale");
-    }
-  }
-
-  function update<K extends FieldKey>(key: K, value: Values[K]) {
+  function update<K extends keyof Values>(key: K, value: Values[K]) {
     setValues((current) => ({ ...current, [key]: value }));
-    if (key === "hasFood" && missing.has(key)) {
-      setMissing((current) => new Set([...current].filter((field) => field !== key)));
-    }
-    markEdited();
   }
 
-  function toggleTag(tag: string) {
-    update(
-      "tags",
-      values.tags.includes(tag) ? values.tags.filter((item) => item !== tag) : [...values.tags, tag],
-    );
+  function toggle(key: "tags" | "foodItems", item: string) {
+    const list = values[key];
+    update(key, list.includes(item) ? list.filter((other) => other !== item) : [...list, item]);
   }
 
-  async function extract() {
-    setExtracting(true);
-    setExtractError(null);
+  function chooseClub(id: string | null) {
+    const club = clubs.find((item) => item.id === id);
+    setValues((current) => {
+      const previous = clubs.find((item) => item.id === current.clubId);
+      // Leaving a club clears its name, unless the organizer typed their own.
+      const clubName = club
+        ? club.name
+        : previous && current.clubName === previous.name
+          ? ""
+          : current.clubName;
+      return { ...current, clubId: club ? club.id : null, clubName };
+    });
+  }
+
+  async function read(url: string | null, notes: string) {
+    const id = ++readId.current;
+    setReadKey(inputKey(url, notes));
+    setReading({ state: "reading", from: url ? "flyer" : "notes" });
+    setReadError(null);
     try {
       const result = await postJson<ExtractEventRequest, ExtractEventResponse>(
         "/api/ai/extract-event",
-        { text: text.trim() || undefined, imageUrl: flyerUrl ?? undefined },
+        { text: notes.trim() || undefined, imageUrl: url ?? undefined },
       );
+      if (id !== readId.current) return;
       const draft = result.event;
-      const next: Values = {
-        title: draft.title ?? "",
-        clubName: draft.clubName ?? "",
+      const when = toWhen(draft.startsAt, draft.endsAt);
+      const tags = draft.tags.filter((tag) => (EVENT_TAGS as readonly string[]).includes(tag));
+      const foodItems = (draft.foodItems ?? []).filter((item) =>
+        (FOOD_OPTIONS as readonly string[]).includes(item),
+      );
+      const club = clubs.find(
+        (item) => item.name.toLowerCase() === draft.clubName?.trim().toLowerCase(),
+      );
+      // Anything the AI could not find keeps what is already in the form.
+      setValues((current) => ({
+        ...current,
+        title: draft.title ?? current.title,
+        clubId: club ? club.id : current.clubId,
+        clubName: draft.clubName ?? current.clubName,
         buildingId: buildings.some((building) => building.id === draft.buildingId)
           ? (draft.buildingId ?? "")
-          : "",
-        room: draft.room ?? "",
-        startsAt: toLocalInput(draft.startsAt),
-        endsAt: toLocalInput(draft.endsAt),
-        description: draft.description ?? "",
-        tags: draft.tags.filter((tag) => (EVENT_TAGS as readonly string[]).includes(tag)),
-        hasFood: draft.hasFood ?? false,
-      };
-
-      const nextMissing = new Set<FieldKey>();
-      for (const name of result.missing) {
-        const key = resolveField(name);
-        if (key) nextMissing.add(key);
-      }
-      for (const key of ["title", "clubName", "buildingId", "room", "startsAt", "endsAt"] as const) {
-        if (!next[key]) nextMissing.add(key);
-      }
-      if (draft.hasFood === null) nextMissing.add("hasFood");
-
-      setValues(next);
-      setMissing(nextMissing);
-      setConfidence(result.confidence);
-      runCheck(next);
+          : current.buildingId,
+        room: draft.room ?? current.room,
+        when: when ?? current.when,
+        description: draft.description ?? current.description,
+        tags: tags.length > 0 ? tags : current.tags,
+        hasFood: foodItems.length > 0 ? true : (draft.hasFood ?? current.hasFood),
+        foodItems: foodItems.length > 0 ? foodItems : current.foodItems,
+      }));
+      setShowMissing(true);
+      setReading((current) => ({ ...current, state: "done" }));
     } catch (error) {
-      setExtractError(errorMessage(error, "Could not read that. Try again or fill in the form."));
-    } finally {
-      setExtracting(false);
+      if (id !== readId.current) return;
+      setReadError(errorMessage(error, "Could not read that."));
+      setReading((current) => ({ ...current, state: "failed" }));
     }
+  }
+
+  // The one automatic read: when notes are pasted and the typing has stopped.
+  const readNotes = useEffectEvent(() => read(flyerUrl, text));
+  const waitingForNotes =
+    !editing && readKey === null && !uploading && text.trim().length >= NOTES_MIN_LENGTH;
+  useEffect(() => {
+    if (!waitingForNotes) return;
+    const timer = setTimeout(readNotes, NOTES_PAUSE_MS);
+    return () => clearTimeout(timer);
+  }, [waitingForNotes, text]);
+
+  function changeFlyer(url: string | null) {
+    setFlyerUrl(url);
+    // The one automatic read: when the first flyer lands.
+    if (url && !editing && readKey === null) read(url, text);
   }
 
   const dirty = values !== startValues || flyerUrl !== (initial?.flyerUrl ?? null) || text !== "";
   useLeaveWarning(!published && dirty);
 
-  const showIssues = checkState !== "idle";
-  const local = codeIssues(values, buildings);
-  const localKeys = new Set(local.map(issueKey));
-  const fromModel = (check?.issues ?? []).filter((issue) => !localKeys.has(issueKey(issue)));
-  const allIssues = showIssues ? [...local, ...fromModel] : [];
-  const byField = new Map<FieldKey, EventIssue[]>();
-  const general: EventIssue[] = [];
-  for (const issue of allIssues) {
-    const key = resolveField(issue.field);
-    if (key) byField.set(key, [...(byField.get(key) ?? []), issue]);
-    else general.push(issue);
-  }
-  const localErrors = local.filter((issue) => issue.severity === "error").length;
-  const errorCount = allIssues.filter((issue) => issue.severity === "error").length;
-  const warnCount = allIssues.length - errorCount;
-  const checked = checkState === "fresh" || checkState === "failed";
-  const canPublish =
-    checked && buildings.length > 0 && localErrors === 0 && !publishing && !uploading;
+  // Instant checks in the browser. Saving an event that already happened
+  // (to add its cost, say) must not trip the "already ended" rule.
+  const draft = toDraft(values);
+  const checked =
+    buildings.length > 0
+      ? checkEventDraft(draft, buildings, editing ? new Date(0) : undefined)
+      : [];
+  const empty: Record<Group, boolean> = {
+    title: !draft.title,
+    club: !draft.clubName,
+    when: !values.when.date || !values.when.start || !values.when.end,
+    where: !draft.buildingId,
+  };
+  // An empty required field is marked "Required" instead of listed as a problem.
+  const isEmptyField = (issue: EventIssue) =>
+    (issue.field === "title" && empty.title) ||
+    (issue.field === "buildingId" && empty.where) ||
+    (issue.field === "startsAt" && !draft.startsAt) ||
+    (issue.field === "endsAt" && !draft.endsAt);
+  const problems = checked.filter((issue) => !isEmptyField(issue));
+  const issuesFor = (...fields: string[]) =>
+    problems.filter((issue) => fields.includes(issue.field));
+  const errorCount = problems.filter((issue) => issue.severity === "error").length;
+  const emptyCount = Object.values(empty).filter(Boolean).length;
+  const required = (group: Group) => showMissing && empty[group];
+  const blocked = errorCount + (showMissing ? emptyCount : 0);
 
-  const needs = (key: FieldKey) =>
-    missing.has(key) && (key === "hasFood" || values[key] === "");
+  const isReading = reading.state === "reading";
+  const busy = isReading || publishing;
+  const canPublish = buildings.length > 0 && blocked === 0 && !busy && !uploading;
 
   async function publish(event: React.FormEvent) {
     event.preventDefault();
-    const startsAt = fromLocalInput(values.startsAt);
-    const endsAt = fromLocalInput(values.endsAt);
-    if (!canPublish || !startsAt || !endsAt) return;
+    if (!canPublish) return;
+    if (emptyCount > 0 || !draft.startsAt || !draft.endsAt) {
+      setShowMissing(true);
+      requestAnimationFrame(() =>
+        formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(),
+      );
+      return;
+    }
 
     setPublishing(true);
     setPublishError(null);
@@ -307,12 +332,15 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
       title: values.title.trim(),
       description: values.description.trim(),
       clubName: values.clubName.trim(),
+      clubId: values.clubId,
       buildingId: values.buildingId,
       room: values.room.trim() || null,
-      startsAt,
-      endsAt,
+      startsAt: draft.startsAt,
+      endsAt: draft.endsAt,
       tags: values.tags,
       hasFood: values.hasFood,
+      foodItems: values.hasFood ? values.foodItems : [],
+      cost: toCost(values.cost),
       flyerUrl,
     };
     try {
@@ -323,7 +351,7 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
       } else {
         const created = await createEvent({ ...fields, source: flyerUrl ? "flyer" : "organizer" });
         setPublished(created);
-        toast.success("Event published", { description: "It is live on the map now." });
+        toast.success("Event published");
       }
     } catch (error) {
       setPublishError(
@@ -335,16 +363,14 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
   }
 
   function reset() {
-    checkId.current++;
+    readId.current++;
     setFlyerUrl(null);
     setText("");
-    setExtractError(null);
-    setConfidence(null);
+    setReading({ state: "idle", from: "notes" });
+    setReadError(null);
+    setReadKey(null);
     setValues(startValues);
-    setMissing(new Set());
-    setCheck(null);
-    setCheckState("idle");
-    setCheckError(null);
+    setShowMissing(false);
     setPublishError(null);
     setPublished(null);
   }
@@ -353,16 +379,12 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
     const building = buildings.find((item) => item.id === published.buildingId);
     const big = "h-10 px-4";
     return (
-      <div className="mx-auto flex max-w-2xl flex-col items-center gap-3 rounded-xl border bg-primary/5 px-6 py-10 text-center">
+      <div className="mx-auto flex w-full max-w-2xl animate-in flex-col items-center gap-3 rounded-xl border bg-primary/5 px-6 py-10 text-center duration-200 ease-out fade-in-0 zoom-in-95 motion-reduce:animate-none">
         <CircleCheck className="size-10 text-primary" aria-hidden />
         <h2 className="text-lg font-semibold text-balance break-words">
           {published.title} is live
         </h2>
-        <p className="text-sm text-pretty text-muted-foreground">
-          Students can register now
-          {building ? `. It is pinned at ${building.name}` : ""}. Check guests in at the door from
-          your phone.
-        </p>
+        {building && <p className="text-sm text-muted-foreground">Pinned at {building.name}</p>}
         <div className="mt-2 flex flex-wrap justify-center gap-2">
           <Link href={`/events/${published.id}`} className={cn(buttonVariants({ size: "lg" }), big)}>
             View event page
@@ -377,7 +399,7 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
             href={`/host/${published.id}/check-in`}
             className={cn(buttonVariants({ variant: "outline", size: "lg" }), big)}
           >
-            Check in
+            Check guests in
           </Link>
         </div>
         <Button variant="ghost" size="lg" className={big} onClick={reset}>
@@ -387,28 +409,49 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
     );
   }
 
-  const busy = extracting || publishing;
-  const whenIssues = [...(byField.get("startsAt") ?? []), ...(byField.get("endsAt") ?? [])];
-  const whereIssues = [...(byField.get("buildingId") ?? []), ...(byField.get("room") ?? [])];
   const tile = "rounded-xl bg-muted/60";
   const rowLabel = "flex items-center gap-2 text-sm font-medium";
+  const control = "h-9 border-transparent bg-background dark:bg-background";
+  const chip =
+    "h-8 touch-manipulation rounded-full border px-3 text-sm transition-[color,background-color,border-color,scale] duration-150 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-[0.97] motion-reduce:active:scale-100";
   const action = editing ? "save" : "publish";
+
+  const whenIssues = issuesFor("startsAt", "endsAt");
+  const whereIssues = issuesFor("buildingId", "room");
+  const titleIssues = issuesFor("title");
+
+  const clubItems = [
+    { value: JUST_ME, label: "Just me" },
+    ...clubs.map((club) => ({ value: club.id, label: club.name })),
+  ];
+  // An event being edited shows its club before the club list has loaded.
+  if (values.clubId && !clubs.some((club) => club.id === values.clubId)) {
+    clubItems.push({ value: values.clubId, label: initial?.clubName || "Club" });
+  }
+  const buildingItems = buildings.map((building) => ({ value: building.id, label: building.name }));
+
+  const hasInput = flyerUrl !== null || text.trim() !== "";
+  const canReread =
+    readKey !== null &&
+    !isReading &&
+    !uploading &&
+    hasInput &&
+    (reading.state === "failed" || readKey !== inputKey(flyerUrl, text));
 
   return (
     <form
+      ref={formRef}
       onSubmit={publish}
-      className="mx-auto grid max-w-4xl gap-6 md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] md:gap-8 lg:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]"
+      className="mx-auto grid w-full max-w-4xl gap-6 md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] md:gap-8 lg:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]"
       noValidate
     >
-      <section aria-label="Flyer and AI draft" className="flex flex-col gap-3">
+      <section aria-label="Flyer and notes" className="flex flex-col gap-3">
         <ImageDrop
           square
-          label={editing ? "Add a flyer" : "Add a flyer or cover"}
+          label="Add a flyer"
+          hint={editing ? undefined : "Drop it here and the form fills itself."}
           value={flyerUrl}
-          onChange={(url) => {
-            setFlyerUrl(url);
-            markEdited();
-          }}
+          onChange={changeFlyer}
           onUploadingChange={setUploading}
           disabled={busy}
         />
@@ -417,7 +460,7 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
           <div className={cn(tile, "flex flex-col gap-2 p-3")}>
             <Label htmlFor="event-text">
               <Sparkles className="size-4 text-primary" aria-hidden />
-              Draft it with AI
+              Or paste your notes
             </Label>
             <Textarea
               id="event-text"
@@ -425,30 +468,26 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
               autoComplete="off"
               value={text}
               onChange={(event) => setText(event.target.value)}
-              placeholder="Paste rough notes: boba + board games thurs 5pm cesar chavez, free boba…"
+              placeholder="boba + board games thurs 5pm cesar chavez, free boba…"
               className="min-h-20 bg-background"
-              disabled={busy}
+              disabled={isReading}
             />
-            <Button
-              type="button"
-              size="lg"
-              className="h-10 px-4"
-              onClick={extract}
-              disabled={busy || uploading || (!flyerUrl && !text.trim())}
-            >
-              {extracting && (
-                <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden />
-              )}
-              {extracting ? "Reading…" : "Fill in the form"}
-            </Button>
-            <p aria-live="polite" className="text-xs text-pretty text-muted-foreground">
-              {extracting
-                ? "This can take up to half a minute."
-                : "Reads your flyer or notes and fills in the form. You correct it. Or skip this and type the details."}
-            </p>
-            {extractError && (
-              <p role="alert" className="text-sm font-medium text-destructive">
-                {extractError}
+            {(readError || canReread) && (
+              <p className="flex flex-wrap items-center gap-x-2 text-xs">
+                {readError && (
+                  <span role="alert" className="font-medium text-destructive">
+                    {readError}
+                  </span>
+                )}
+                {canReread && (
+                  <button
+                    type="button"
+                    onClick={() => read(flyerUrl, text)}
+                    className="rounded-sm font-medium text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    {reading.state === "failed" ? "Try again" : "Re-read"}
+                  </button>
+                )}
               </p>
             )}
           </div>
@@ -458,49 +497,38 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
       <div className="flex min-w-0 flex-col gap-3">
         <h2 className="sr-only">Event details</h2>
 
-        {confidence !== null && (
-          <p className="flex items-start gap-2 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-pretty">
-            <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
-            <span>
-              <span className="font-medium">AI draft, {Math.round(confidence * 100)}% confident.</span>{" "}
-              It can misread a flyer. Review every field. Nothing is published until you press
-              Publish.
-            </span>
-          </p>
-        )}
+        <div aria-live="polite">
+          {isReading && (
+            <p className="flex animate-in items-center gap-2.5 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm duration-200 ease-out fade-in-0 slide-in-from-top-1 motion-reduce:animate-none">
+              <Loader2
+                className="size-4 shrink-0 animate-spin text-primary motion-reduce:animate-none"
+                aria-hidden
+              />
+              <span className="font-medium">
+                Reading your {reading.from === "flyer" ? "flyer" : "notes"}
+              </span>
+              <span className="text-muted-foreground">About 30 seconds</span>
+            </p>
+          )}
+        </div>
 
-        <fieldset disabled={busy} className="flex min-w-0 flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <label
-                className={cn(
-                  tile,
-                  "flex h-8 w-fit max-w-full min-w-0 items-center gap-2 px-2.5 text-sm focus-within:ring-3 focus-within:ring-ring/50",
-                )}
-              >
-                <Users className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                <span className="sr-only">Club or organizer</span>
-                <input
-                  {...fieldControlProps("event-club", byField.get("clubName"))}
-                  name="club"
-                  autoComplete="off"
-                  placeholder="Club or organizer"
-                  className="w-48 max-w-full min-w-0 bg-transparent text-base outline-none placeholder:text-muted-foreground md:text-sm"
-                  value={values.clubName}
-                  onChange={(event) => update("clubName", event.target.value)}
-                />
-              </label>
-              {needs("clubName") && <NeedsInput />}
-            </div>
-            <BlockIssues id="event-club-issues" issues={byField.get("clubName") ?? []} />
-          </div>
-
+        <fieldset
+          disabled={busy}
+          className={cn(
+            "flex min-w-0 flex-col gap-3 transition-opacity duration-200",
+            isReading && "opacity-50",
+          )}
+        >
           <div className="flex flex-col gap-1">
             <label htmlFor="event-title" className="sr-only">
               Event name
             </label>
             <input
-              {...fieldControlProps("event-title", byField.get("title"))}
+              id="event-title"
+              aria-invalid={
+                required("title") || titleIssues.some((issue) => issue.severity === "error") || undefined
+              }
+              aria-describedby={titleIssues.length > 0 ? "event-title-issues" : undefined}
               name="title"
               autoComplete="off"
               placeholder="Event name"
@@ -508,95 +536,103 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
               value={values.title}
               onChange={(event) => update("title", event.target.value)}
             />
-            {needs("title") && <NeedsInput />}
-            <BlockIssues id="event-title-issues" issues={byField.get("title") ?? []} />
+            {required("title") && <Required />}
+            <BlockIssues id="event-title-issues" issues={titleIssues} />
           </div>
 
-          <div role="group" aria-label="When" className={cn(tile, "flex flex-col gap-1 p-1.5")}>
-            <div className="relative flex flex-col gap-1">
-              {/* The dotted line joining the Start and End dots. */}
-              <span
-                aria-hidden
-                className="absolute top-6 bottom-6 left-[0.9rem] border-l border-dotted border-muted-foreground/60"
+          <div role="group" aria-labelledby="event-host" className={cn(tile, "flex flex-col gap-2 p-3")}>
+            <p id="event-host" className={rowLabel}>
+              <Users className="size-4 text-muted-foreground" aria-hidden />
+              Hosted by
+              {required("club") && <Required />}
+            </p>
+            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
+              <Select
+                items={clubItems}
+                value={values.clubId ?? JUST_ME}
+                onValueChange={(id) => chooseClub(id === JUST_ME ? null : id)}
+              >
+                <SelectTrigger aria-label="Club" className={cn(control, "w-full")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  {clubItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                id="event-club"
+                aria-label="Club or organizer"
+                aria-invalid={required("club") || undefined}
+                name="club"
+                autoComplete="off"
+                placeholder="Club or organizer"
+                className={control}
+                value={values.clubName}
+                onChange={(event) => update("clubName", event.target.value)}
               />
-              {(
-                [
-                  ["event-start", "Start", "starts", "startsAt"],
-                  ["event-end", "End", "ends", "endsAt"],
-                ] as const
-              ).map(([id, label, name, key]) => (
-                <div
-                  key={id}
-                  className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-2 py-0.5 pr-0.5 pl-2"
-                >
-                  <label htmlFor={id} className="flex items-center gap-2.5 text-sm">
-                    <span
-                      aria-hidden
-                      className={cn(
-                        "relative size-2.5 shrink-0 rounded-full border border-muted-foreground/70",
-                        key === "startsAt" ? "bg-muted-foreground/70" : "bg-muted",
-                      )}
-                    />
-                    {label}
-                  </label>
-                  <Input
-                    {...fieldControlProps(id, byField.get(key))}
-                    aria-describedby={whenIssues.length > 0 ? "event-when-issues" : undefined}
-                    name={name}
-                    type="datetime-local"
-                    className="h-9 border-transparent bg-background"
-                    min={key === "endsAt" ? values.startsAt || undefined : undefined}
-                    value={values[key]}
-                    onChange={(event) => update(key, event.target.value)}
-                  />
-                </div>
-              ))}
             </div>
-            {(needs("startsAt") || needs("endsAt") || whenIssues.length > 0) && (
-              <div className="flex flex-col gap-1 px-2 pb-1.5">
-                {(needs("startsAt") || needs("endsAt")) && <NeedsInput />}
-                <BlockIssues id="event-when-issues" issues={whenIssues} />
-              </div>
-            )}
           </div>
 
-          <div
-            role="group"
-            aria-labelledby="event-where"
-            className={cn(tile, "flex flex-col gap-2 p-3")}
-          >
+          <div role="group" aria-labelledby="event-when" className={cn(tile, "flex flex-col gap-2 p-3")}>
+            <p id="event-when" className={rowLabel}>
+              <Clock className="size-4 text-muted-foreground" aria-hidden />
+              When
+              {required("when") && <Required />}
+            </p>
+            <WhenPicker
+              value={values.when}
+              onChange={(when) => update("when", when)}
+              showMissing={showMissing}
+              describedBy={whenIssues.length > 0 ? "event-when-issues" : undefined}
+            />
+            <BlockIssues id="event-when-issues" issues={whenIssues} />
+          </div>
+
+          <div role="group" aria-labelledby="event-where" className={cn(tile, "flex flex-col gap-2 p-3")}>
             <p id="event-where" className={rowLabel}>
               <MapPin className="size-4 text-muted-foreground" aria-hidden />
-              Location
-              {(needs("buildingId") || needs("room")) && <NeedsInput />}
+              Where
+              {required("where") && <Required />}
             </p>
             <div className="grid gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-              <select
-                {...fieldControlProps("event-building", byField.get("buildingId"))}
-                aria-describedby={whereIssues.length > 0 ? "event-where-issues" : undefined}
-                aria-label="Building"
-                name="building"
-                className={cn(selectClass, "h-9 border-transparent")}
-                value={values.buildingId}
-                onChange={(event) => update("buildingId", event.target.value)}
+              <Select
+                items={buildingItems}
+                value={values.buildingId || null}
+                onValueChange={(id) => update("buildingId", id ?? "")}
               >
-                <option value="">
-                  {buildings.length === 0 ? "Loading buildings…" : "Choose a building"}
-                </option>
-                {buildings.map((building) => (
-                  <option key={building.id} value={building.id}>
-                    {building.name}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger
+                  aria-label="Building"
+                  aria-invalid={
+                    required("where") ||
+                    whereIssues.some((issue) => issue.severity === "error") ||
+                    undefined
+                  }
+                  aria-describedby={whereIssues.length > 0 ? "event-where-issues" : undefined}
+                  className={cn(control, "w-full")}
+                >
+                  <SelectValue
+                    placeholder={buildings.length === 0 ? "Loading buildings…" : "Building"}
+                  />
+                </SelectTrigger>
+                <SelectContent alignItemWithTrigger={false} className="max-h-72">
+                  {buildingItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Input
-                {...fieldControlProps("event-room", byField.get("room"))}
-                aria-describedby={whereIssues.length > 0 ? "event-where-issues" : undefined}
+                id="event-room"
                 aria-label="Room, optional"
                 name="room"
                 autoComplete="off"
                 placeholder="Room (optional)"
-                className="h-9 border-transparent bg-background"
+                className={control}
                 value={values.room}
                 onChange={(event) => update("room", event.target.value)}
               />
@@ -608,26 +644,19 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
             <label htmlFor="event-description" className={rowLabel}>
               <AlignLeft className="size-4 text-muted-foreground" aria-hidden />
               Description
-              <span className="text-xs font-normal text-muted-foreground">Optional</span>
+              <Optional />
             </label>
             <Textarea
-              {...fieldControlProps("event-description", byField.get("description"))}
-              aria-describedby={
-                byField.has("description") ? "event-description-issues" : undefined
-              }
+              {...fieldControlProps("event-description", issuesFor("description"))}
               name="description"
               autoComplete="off"
-              className="min-h-20 border-transparent bg-background"
+              className="min-h-20 border-transparent bg-background dark:bg-background"
               value={values.description}
               onChange={(event) => update("description", event.target.value)}
             />
-            <BlockIssues
-              id="event-description-issues"
-              issues={byField.get("description") ?? []}
-            />
+            <BlockIssues id="event-description-issues" issues={issuesFor("description")} />
           </div>
 
-          <h3 className="mt-2 text-sm font-medium text-muted-foreground">Event options</h3>
           <div className={cn(tile, "divide-y divide-border")}>
             <div role="group" aria-labelledby="event-tags" className="flex flex-col gap-2 p-3">
               <p id="event-tags" className={rowLabel}>
@@ -642,9 +671,9 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
                       key={tag}
                       type="button"
                       aria-pressed={on}
-                      onClick={() => toggleTag(tag)}
+                      onClick={() => toggle("tags", tag)}
                       className={cn(
-                        "h-8 touch-manipulation rounded-full border px-3 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+                        chip,
                         on
                           ? "border-primary bg-primary text-primary-foreground hover:bg-primary/85"
                           : "border-transparent bg-background hover:bg-background/60",
@@ -655,151 +684,125 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
                   );
                 })}
               </div>
-              <BlockIssues id="event-tags-issues" issues={byField.get("tags") ?? []} />
             </div>
 
-            <div className="flex flex-col gap-1 p-3">
+            <div className="flex flex-col gap-2 p-3">
               <label className="flex min-h-8 cursor-pointer items-center justify-between gap-3 text-sm font-medium">
-                <span className="flex flex-wrap items-center gap-2">
+                <span className="flex items-center gap-2">
                   <Utensils className="size-4 text-muted-foreground" aria-hidden />
-                  Free food at this event
-                  {needs("hasFood") && <NeedsInput />}
+                  Free food
                 </span>
-                <input
-                  {...fieldControlProps("event-food", byField.get("hasFood"))}
+                <Switch
                   name="hasFood"
-                  type="checkbox"
-                  className="size-5 shrink-0 accent-accent"
+                  aria-label="Free food"
+                  className="data-checked:bg-accent"
                   checked={values.hasFood}
-                  onChange={(event) => update("hasFood", event.target.checked)}
+                  onCheckedChange={(on) => update("hasFood", on)}
                 />
               </label>
-              <BlockIssues id="event-food-issues" issues={byField.get("hasFood") ?? []} />
+              {values.hasFood && (
+                <div
+                  role="group"
+                  aria-label="What food"
+                  className="flex animate-in flex-wrap gap-1.5 duration-150 ease-out fade-in-0 slide-in-from-top-1 motion-reduce:animate-none"
+                >
+                  {FOOD_OPTIONS.map((item) => {
+                    const on = values.foodItems.includes(item);
+                    return (
+                      <button
+                        key={item}
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() => toggle("foodItems", item)}
+                        className={cn(
+                          chip,
+                          on
+                            ? "border-accent bg-accent text-accent-foreground hover:bg-accent/85"
+                            : "border-transparent bg-background hover:bg-background/60",
+                        )}
+                      >
+                        {item}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex min-h-14 items-center justify-between gap-3 p-3">
+              <label htmlFor="event-cost" className={cn(rowLabel, "flex-wrap")}>
+                <DollarSign className="size-4 text-muted-foreground" aria-hidden />
+                What did it cost?
+                <Optional />
+              </label>
+              <div className="relative w-28 shrink-0">
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-sm text-muted-foreground"
+                >
+                  $
+                </span>
+                <Input
+                  id="event-cost"
+                  name="cost"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  placeholder="0"
+                  className={cn(control, "pl-6 text-right tabular-nums")}
+                  value={values.cost}
+                  onChange={(event) => update("cost", cleanCost(event.target.value))}
+                />
+              </div>
             </div>
           </div>
         </fieldset>
 
-        {check && showIssues && <IssueList issues={general} questions={check.questions} />}
-
-        <section
-          aria-label={editing ? "Check and save" : "Check and publish"}
-          className="mt-2 flex flex-col gap-3"
-        >
-          <p aria-live="polite" className="flex items-center gap-2 text-sm text-pretty">
-            {(checkState === "checking" || checkState === "stale") && (
-              <>
-                <Loader2
-                  className="size-4 shrink-0 animate-spin text-muted-foreground motion-reduce:animate-none"
-                  aria-hidden
-                />
-                {errorCount > 0 ? (
-                  <span className="font-medium text-destructive">
-                    Fix {errorCount} {errorCount === 1 ? "problem" : "problems"} to {action}.
-                    Checking the rest…
-                  </span>
-                ) : (
-                  "Checking your event. This can take up to half a minute…"
-                )}
-              </>
-            )}
-            {checkState === "idle" && (
-              <span className="text-muted-foreground">
-                Check the event first. It catches wrong dates and missing details.
-              </span>
-            )}
-            {checked && errorCount > 0 && (
-              <span className="font-medium text-destructive">
-                Fix {errorCount} {errorCount === 1 ? "problem" : "problems"} to {action}.
-              </span>
-            )}
-            {checked && errorCount === 0 && (
-              <span>
-                <span className="font-medium">
-                  {checkState === "failed" ? "The AI check is unavailable." : "No blocking problems."}
-                </span>{" "}
-                {checkState === "failed"
-                  ? `The exact date and place checks passed. Review the rest yourself.${checkError ? ` (${checkError})` : ""}`
-                  : warnCount > 0
-                    ? `${warnCount} ${warnCount === 1 ? "warning" : "warnings"} to look at, but you can ${action}.`
-                    : `Ready to ${action}.`}
-              </span>
-            )}
+        <section aria-label={editing ? "Save" : "Publish"} className="mt-2 flex flex-col gap-2">
+          <Button type="submit" size="lg" className="h-11 w-full text-base" disabled={!canPublish}>
+            {publishing && <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden />}
+            {editing
+              ? publishing
+                ? "Saving…"
+                : "Save changes"
+              : publishing
+                ? "Publishing…"
+                : "Publish event"}
+          </Button>
+          <p aria-live="polite" className="min-h-5 text-center text-sm font-medium text-destructive">
+            {blocked > 0 && !isReading && `Fix ${blocked} ${blocked === 1 ? "thing" : "things"} to ${action}`}
           </p>
-
-          {checkState === "idle" ? (
+          {publishError && (
+            <p role="alert" className="text-center text-sm font-medium text-destructive">
+              {publishError}
+            </p>
+          )}
+          {onCancel && (
             <Button
               type="button"
+              variant="ghost"
               size="lg"
-              className="h-11 w-full text-base"
-              onClick={() => runCheck(values)}
-              disabled={busy}
+              className="mx-auto h-9 px-3"
+              onClick={onCancel}
+              disabled={publishing}
             >
-              Check event
+              Cancel
             </Button>
-          ) : (
-            <Button type="submit" size="lg" className="h-11 w-full text-base" disabled={!canPublish}>
-              {publishing && (
-                <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden />
-              )}
-              {editing
-                ? publishing
-                  ? "Saving…"
-                  : "Save changes"
-                : publishing
-                  ? "Publishing…"
-                  : "Publish event"}
-            </Button>
-          )}
-
-          {(checkState !== "idle" || onCancel) && (
-            <div className="flex flex-wrap justify-center gap-2">
-              {checkState !== "idle" && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="lg"
-                  className="h-9 px-3"
-                  onClick={() => runCheck(values)}
-                  disabled={busy || checkState === "checking"}
-                >
-                  Check again
-                </Button>
-              )}
-              {onCancel && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="lg"
-                  className="h-9 px-3"
-                  onClick={onCancel}
-                  disabled={publishing}
-                >
-                  Cancel
-                </Button>
-              )}
-            </div>
           )}
         </section>
-
-        {publishError && (
-          <p role="alert" className="text-sm font-medium text-destructive">
-            {publishError}
-          </p>
-        )}
       </div>
     </form>
   );
 }
 
-function NeedsInput() {
-  return (
-    <span className="rounded-full bg-accent/20 px-2 py-0.5 text-xs font-medium text-accent-foreground">
-      Needs input
-    </span>
-  );
+function Required() {
+  return <span className="text-xs font-medium text-destructive">Required</span>;
 }
 
-// Issues for a grouped block (When, Where), shown once under both fields.
+function Optional() {
+  return <span className="text-xs font-normal text-muted-foreground">Optional</span>;
+}
+
+// Problems for a block (When, Where), shown once under its fields.
 function BlockIssues({ id, issues }: { id: string; issues: EventIssue[] }) {
   if (issues.length === 0) return null;
   return (
