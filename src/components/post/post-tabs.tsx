@@ -66,9 +66,9 @@ export function PostTabs({
   return (
     <div className="flex flex-col gap-6">
       <div
-        role="radiogroup"
+        role="group"
         aria-labelledby="post-kind"
-        className={cn("mx-auto grid w-full max-w-2xl gap-3", "grid-cols-2")}
+        className="mx-auto grid w-full max-w-2xl grid-cols-2 gap-3"
       >
         {CHOICES.map(({ kind: choice, title, body, icon: Icon }) => {
           const selected = kind === choice;
@@ -77,8 +77,7 @@ export function PostTabs({
             <button
               key={choice}
               type="button"
-              role="radio"
-              aria-checked={selected}
+              aria-pressed={selected}
               onClick={() => choose(choice)}
               className={cn(
                 "flex touch-manipulation flex-col items-start gap-2 rounded-xl border text-left transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
