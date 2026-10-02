@@ -13,13 +13,21 @@ import { Legend } from "@/components/map/legend";
 import { countLabel, type Hover, type Selection } from "@/components/map/map-utils";
 import { useEventFilters, useNow } from "@/components/map/use-event-filters";
 import { useFreshIds } from "@/components/map/use-fresh-ids";
-import { listClubs, listMyTickets } from "@/lib/db";
-import type { Club } from "@/lib/types";
+import { SafetyMarkers } from "@/components/safety/safety-markers";
+import { listClubs, listMyTickets, listSafetyNotices } from "@/lib/db";
+import type { Club, SafetyNotice } from "@/lib/types";
 import { useCampus } from "@/lib/use-campus";
 
 // Event list on the left, map on the right. On a phone the map sits on top of the list.
 export default function MapPage() {
   const { buildings, events, rescues, loading, error } = useCampus();
+  // Official University Police notices. A failed load just means no markers.
+  const [notices, setNotices] = useState<SafetyNotice[]>([]);
+  useEffect(() => {
+    listSafetyNotices()
+      .then(setNotices)
+      .catch(() => {});
+  }, []);
   const now = useNow();
   const user = useUser();
   const userId = user?.id ?? null;
@@ -163,7 +171,9 @@ export default function MapPage() {
           now={now}
           onSelect={setSelection}
           onHover={setHover}
-        />
+        >
+          <SafetyMarkers notices={notices} buildings={buildings} />
+        </CampusMap>
         {!loading && !error && <Legend events={filters.events} />}
       </div>
 

@@ -37,6 +37,7 @@ type CampusMapProps = {
   now: number;
   onSelect: (selection: Selection) => void;
   onHover: (hover: Hover) => void;
+  children?: React.ReactNode; // extra markers, drawn inside the map
 };
 
 type PinKind = "event" | "rescue";
@@ -57,6 +58,7 @@ export function CampusMap({
   now,
   onSelect,
   onHover,
+  children,
 }: CampusMapProps) {
   const mapRef = useRef<MapRef>(null);
   const [openPin, setOpenPin] = useState<{ kind: PinKind; buildingId: string } | null>(null);
@@ -322,6 +324,7 @@ export function CampusMap({
           </Fragment>
         );
       })}
+      {children}
     </Map>
   );
 }
