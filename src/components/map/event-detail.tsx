@@ -34,6 +34,8 @@ function Fact({ icon: Icon, children }: { icon: typeof Clock; children: React.Re
 }
 
 function EventDetail({ event, building, now }: { event: CampusEvent; building?: Building; now: number }) {
+  const ended = Date.parse(event.endsAt) < now;
+
   return (
     <div className="space-y-4 p-5">
       <div className="space-y-2">
@@ -69,6 +71,17 @@ function EventDetail({ event, building, now }: { event: CampusEvent; building?: 
           ))}
         </ul>
       )}
+
+      <div className="flex items-center gap-3">
+        <Link href={`/events/${event.id}`} className={cn(buttonVariants({ size: "lg" }), "flex-1")}>
+          {ended ? "View event" : "View and register"}
+        </Link>
+        {event.rsvpCount > 0 && (
+          <p className="shrink-0 text-sm text-muted-foreground tabular-nums">
+            {event.rsvpCount} going
+          </p>
+        )}
+      </div>
 
       {event.flyerUrl && (
         // Flyers are user uploads on Supabase storage, so the size is not known ahead of time.
