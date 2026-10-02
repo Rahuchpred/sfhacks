@@ -1,5 +1,5 @@
 // Prompt builders. Starter versions: Thread B owns and improves these.
-import { EVENT_TAGS, TIMEZONE } from "@/lib/checks";
+import { EVENT_TAGS, FOOD_OPTIONS, TIMEZONE } from "@/lib/checks";
 import type { Building, EventDraft, EventIssue } from "@/lib/types";
 
 function nowLine(): string {
@@ -31,7 +31,8 @@ const EVENT_SHAPE = `{
   "startsAt": string | null,      // ISO 8601 with Pacific offset, e.g. 2026-10-08T17:00:00-07:00
   "endsAt": string | null,
   "tags": string[],               // 1-4 of: ${EVENT_TAGS.join(", ")}
-  "hasFood": boolean | null
+  "hasFood": boolean | null,
+  "foodItems": string[]            // only food the input names, from: ${FOOD_OPTIONS.join(", ")}
 }`;
 
 export function extractEventPrompt(buildings: Building[], text?: string): string {
@@ -191,4 +192,23 @@ Rules:
 
 Reply with only this JSON object, no other text:
 { "matches": [{ "profileId": string, "reason": string, "evidenceEventIds": string[] }] }`;
+}
+
+export function hostInsightsPrompt(stats: unknown): string {
+  return `You help a student club at San Francisco State University learn from its event data. Everything below was counted exactly by the system. There are no names in it.
+
+Data:
+${JSON.stringify(stats, null, 2)}
+
+Rules:
+- "insights": 3 to 5 findings a club officer could act on. Each has a short "title" (2 to 5 words) and a "detail" of one or two plain sentences that quotes the specific numbers behind it.
+- Look for: which events, weekdays or times drew the best turnout, the gap between sign-ups and check-ins, which majors or years show up and which are missing, whether food changes turnout, how much food was left over, and cost per attendee.
+- If leftover food is consistent, say how much less to order next time, using the leftover numbers.
+- Describe patterns, not causes. With this few events, say "events with food drew more check-ins", never "food increases attendance".
+- Use only the numbers given. Never invent or estimate a number. If the data is too thin to support a finding (for example one event), say so plainly instead of guessing.
+- "nextEvent": one concrete suggestion for the next event (day, time, food amount or audience), with the reason.
+- No hype words.
+
+Reply with only this JSON object, no other text:
+{ "insights": [{ "title": string, "detail": string }], "nextEvent": string }`;
 }

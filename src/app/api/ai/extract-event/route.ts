@@ -1,6 +1,6 @@
 import { aiErrorResponse, generateJson } from "@/lib/ai";
 import { extractEventSchema } from "@/lib/ai-schemas";
-import { EVENT_TAGS, missingFields } from "@/lib/checks";
+import { EVENT_TAGS, FOOD_OPTIONS, missingFields } from "@/lib/checks";
 import { listBuildings } from "@/lib/db";
 import { extractEventFixture } from "@/lib/fixtures";
 import { extractEventPrompt } from "@/lib/prompts";
@@ -26,6 +26,9 @@ export async function POST(request: Request) {
       event.buildingId = null;
     }
     event.tags = event.tags.filter((tag) => (EVENT_TAGS as readonly string[]).includes(tag));
+    event.foodItems = (event.foodItems ?? []).filter((item) =>
+      (FOOD_OPTIONS as readonly string[]).includes(item),
+    );
 
     const response: ExtractEventResponse = {
       event,

@@ -27,8 +27,6 @@ const WEEKDAY_PATTERNS: [RegExp, string][] = [
   [/\bsaturdays?\b/i, "saturday"],
 ];
 
-const ALLERGEN_WORDS = /allerg|nut|gluten|dairy|vegan|vegetarian|halal|kosher/i;
-
 const weekdayFormat = new Intl.DateTimeFormat("en-US", { timeZone: TIMEZONE, weekday: "long" });
 const dateFormat = new Intl.DateTimeFormat("en-US", {
   timeZone: TIMEZONE,
@@ -69,10 +67,6 @@ export function checkEventDraft(
     error("buildingId", "That building is not on the campus list. Pick one from the list.");
   }
 
-  if (!event.room?.trim()) {
-    warn("room", "No room number. That is fine for outdoor events, otherwise add one.");
-  }
-
   const start = parseDate(event.startsAt);
   const end = parseDate(event.endsAt);
 
@@ -99,10 +93,6 @@ export function checkEventDraft(
         `The text says ${mentioned.map(capitalize).join(" or ")}, but ${dateFormat.format(start)} is a ${capitalize(actual)}.`,
       );
     }
-  }
-
-  if (event.hasFood && !ALLERGEN_WORDS.test(event.description ?? "")) {
-    warn("description", "There is food, but nothing about allergens or dietary options.");
   }
 
   return issues;

@@ -189,6 +189,7 @@ export type EventDraft = {
   endsAt: string | null;
   tags: string[];
   hasFood: boolean | null;
+  foodItems?: string[]; // from FOOD_OPTIONS, filled by the AI draft when the flyer names food
 };
 
 export type ExtractEventRequest = { text?: string; imageUrl?: string };
@@ -250,3 +251,7 @@ export type RecruiterMatch = {
   evidenceEventIds: string[];
 };
 export type RecruiterSearchResponse = { matches: RecruiterMatch[] };
+
+export type HostInsightsRequest = { stats: unknown };
+export type HostInsight = { title: string; detail: string };
+export type HostInsightsResponse = { insights: HostInsight[]; nextEvent: string };

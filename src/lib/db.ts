@@ -204,6 +204,14 @@ export async function listRescueClaims(rescueId: string): Promise<RescueClaim[]>
   }));
 }
 
+// Food posts across several events, any status. Used by organizer analytics.
+export async function listRescuesForEvents(eventIds: string[]): Promise<FoodRescue[]> {
+  if (eventIds.length === 0) return [];
+  const { data, error } = await supabase.from("food_rescues").select("*").in("event_id", eventIds);
+  if (error) throw error;
+  return data.map(toRescue);
+}
+
 // Food posts for events the signed-in user manages, any status, newest first.
 export async function listRescuesForEvent(eventId: string): Promise<FoodRescue[]> {
   const { data, error } = await supabase

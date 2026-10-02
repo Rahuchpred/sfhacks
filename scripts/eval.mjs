@@ -29,8 +29,6 @@ const base = {
 
 const hasError = (res, field) =>
   res.issues.some((issue) => issue.field === field && issue.severity === "error");
-const hasWarn = (res, field) =>
-  res.issues.some((issue) => issue.field === field && issue.severity === "warn");
 
 const checkCases = [
   ["clean event passes", base, (r) => r.ok === true],
@@ -55,14 +53,9 @@ const checkCases = [
     (r) => r.ok === true,
   ],
   ["end before start blocks", { ...base, endsAt: day(3, 15).toISOString() }, (r) => !r.ok && hasError(r, "endsAt")],
-  ["missing room only warns", { ...base, room: null }, (r) => r.ok === true && hasWarn(r, "room")],
+  ["missing room is fine", { ...base, room: null }, (r) => r.ok === true && r.issues.length === 0],
   ["unknown building blocks", { ...base, buildingId: "hogwarts" }, (r) => !r.ok && hasError(r, "buildingId")],
   ["missing start blocks", { ...base, startsAt: null }, (r) => !r.ok && hasError(r, "startsAt")],
-  [
-    "food without allergen info warns",
-    { ...base, hasFood: true, description: "Free pizza for all." },
-    (r) => r.ok === true && hasWarn(r, "description"),
-  ],
 ];
 
 const extractCases = [

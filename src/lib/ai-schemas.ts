@@ -13,6 +13,7 @@ export const eventDraftSchema = z.object({
   endsAt: nullableString,
   tags: z.array(z.string()).catch([]),
   hasFood: z.boolean().nullable().catch(null),
+  foodItems: z.array(z.string()).catch([]),
 });
 
 export const extractEventSchema = z.object({
@@ -51,4 +52,9 @@ export const recruiterSearchSchema = z.object({
       }),
     )
     .catch([]),
+});
+
+export const hostInsightsSchema = z.object({
+  insights: z.array(z.object({ title: z.string(), detail: z.string() })).min(1).max(6),
+  nextEvent: z.string().catch(""),
 });

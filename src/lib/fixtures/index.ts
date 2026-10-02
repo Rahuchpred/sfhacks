@@ -12,6 +12,7 @@ export const extractEventFixture: ExtractEventResponse = {
     endsAt: "2026-10-08T19:00:00-07:00",
     tags: ["social", "cultural", "free food"],
     hasFood: true,
+    foodItems: ["boba"],
   },
   missing: [],
   confidence: 0.86,
@@ -39,3 +40,8 @@ export const eventRecapFixture = {
 };
 
 export const recruiterSearchFixture = { matches: [] };
+
+export const hostInsightsFixture = {
+  insights: [{ title: "Turnout", detail: "About 6 in 10 registered students check in." }],
+  nextEvent: "Plan food for 60% of registrations.",
+};
