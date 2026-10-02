@@ -1,17 +1,16 @@
-"use client";
+import type { Metadata } from "next";
+import { RescueGrid } from "@/components/food/rescue-grid";
 
-import { useCampus } from "@/lib/use-campus";
+export const metadata: Metadata = { title: "Free food | Gator Radar" };
 
-// Placeholder: Thread C builds the Food Rescue list and claim flow here.
 export default function FoodPage() {
-  const { rescues, loading } = useCampus();
-
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">Free food</h1>
-      <p className="mt-1 text-muted-foreground">
-        {loading ? "Loading…" : `${rescues.length} open right now.`}
+    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+      <h1 className="text-2xl font-semibold tracking-tight text-balance">Free food</h1>
+      <p className="mt-1 mb-6 text-pretty text-muted-foreground">
+        Leftovers from campus events. Claim a portion, then pick it up before the safe-until time.
       </p>
+      <RescueGrid />
     </div>
   );
 }
