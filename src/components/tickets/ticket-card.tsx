@@ -135,9 +135,12 @@ export function TicketCardSkeleton() {
         <Skeleton className="h-4 w-2/5" />
         <Skeleton className="h-4 w-4/5" />
         <Skeleton className="h-4 w-3/5" />
+        <Skeleton className="mt-auto h-7 w-36" />
       </div>
       <div className={stubClass}>
-        <Skeleton className="size-[216px] rounded-xl" />
+        {/* The QR box and the code under it, at the sizes the ticket uses. */}
+        <Skeleton className="aspect-square w-full max-w-[282px] rounded-xl sm:w-[218px]" />
+        <Skeleton className="mt-3 h-7 w-36" />
       </div>
     </Card>
   );

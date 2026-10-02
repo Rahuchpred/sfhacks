@@ -169,6 +169,21 @@ export function Buildings3D({ enabled, color }: { enabled: boolean; color: strin
   return null;
 }
 
+// The detailed looks (Streets, Bright) put an icon on every tree, bin and bench once the
+// map zooms in on a building, which buries the pins. This hides that last tier of places.
+const MINOR_PLACES_LAYER = "poi_r20";
+
+export function QuietPlaces() {
+  const { map, isLoaded } = useMap();
+
+  useEffect(() => {
+    if (!map || !isLoaded || !map.getLayer(MINOR_PLACES_LAYER)) return;
+    map.setLayoutProperty(MINOR_PLACES_LAYER, "visibility", "none");
+  }, [map, isLoaded]);
+
+  return null;
+}
+
 // The floating button that changes the map type and turns 3D on or off.
 export function MapLookPicker({
   look,

@@ -61,7 +61,8 @@ function LoadingSkeleton() {
   return (
     <div className={columns} role="status" aria-label="Loading…">
       <div className={coverColumn}>
-        <Skeleton className={cn("aspect-[4/5] w-full rounded-xl", pulse)} />
+        {/* The shape of the generated cover, so the page does not jump when the event arrives. */}
+        <Skeleton className={cn("aspect-video w-full rounded-xl md:aspect-square", pulse)} />
         <Skeleton className={cn("h-4 w-40", pulse)} />
       </div>
       <div className="space-y-5">

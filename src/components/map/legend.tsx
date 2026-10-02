@@ -16,7 +16,9 @@ function Row({ children }: { children: React.ReactNode }) {
 
 // Explains the pins. Lists only the categories that are on the map right now.
 // Open by default on wide screens, closed on a phone where the map is small.
-export function Legend({ events }: { events: CampusEvent[] }) {
+// While the detail panel floats over the left edge of the map, the key moves out from
+// under it.
+export function Legend({ events, aside = false }: { events: CampusEvent[]; aside?: boolean }) {
   const [open, setOpen] = useState<boolean | null>(null);
   const present = new Set(events.map((event) => mainCategory(event).tag));
   const categories = [...CATEGORIES, OTHER_CATEGORY].filter((category) =>
@@ -26,7 +28,8 @@ export function Legend({ events }: { events: CampusEvent[] }) {
   return (
     <div
       className={cn(
-        "absolute bottom-10 left-3 z-10 md:bottom-3 max-w-[calc(100%-5rem)] rounded-lg border bg-background/95 shadow-md backdrop-blur-sm",
+        "absolute bottom-10 left-3 z-10 md:bottom-3 max-w-[calc(100%-5rem)] rounded-lg border bg-background/95 shadow-md backdrop-blur-sm transition-[translate] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
+        aside && "@5xl:translate-x-[25.5rem]",
         open === null ? "w-28 md:w-44" : open ? "w-44" : "w-28",
       )}
     >

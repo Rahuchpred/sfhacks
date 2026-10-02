@@ -141,7 +141,7 @@ function ClubCard({ summary, now }: { summary: ClubSummary; now: number }) {
   return (
     <Link
       href={`/clubs/${club.id}`}
-      className="group flex h-full flex-col gap-4 rounded-xl bg-card p-4 ring-1 ring-foreground/10 transition-[box-shadow,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:shadow-md hover:ring-primary/40 focus-visible:ring-3 focus-visible:ring-ring/60 focus-visible:outline-none active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100"
+      className="group flex h-full flex-col gap-4 rounded-xl bg-card p-4 ring-1 ring-foreground/10 transition-[box-shadow,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] hover:shadow-md hover:ring-primary/40 focus-visible:ring-3 focus-visible:ring-ring/60 focus-visible:outline-none active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100"
     >
       <div className="flex items-center gap-3">
         <ClubAvatar club={club} />

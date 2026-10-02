@@ -13,6 +13,7 @@ import {
   Buildings3D,
   lookById,
   MapLookPicker,
+  QuietPlaces,
   useMapLook,
   type MapLook,
 } from "./map-look";
@@ -29,8 +30,11 @@ import {
 const SFSU_CENTER: [number, number] = [-122.4793, 37.7229];
 const START_ZOOM = 15.6;
 const FOCUS_ZOOM = 17;
-// On wide screens the detail panel covers the left edge of the map, so focus right of it.
+// With enough room the detail panel floats over the left edge of the map (see DetailPanel),
+// so focus in the middle of what is left beside it. Otherwise the panel is off the map.
 const DETAIL_PANEL_WIDTH = 416;
+const SIDE_BY_SIDE = "(min-width: 768px)";
+const MIN_MAP_FOR_PANEL = 640; // the page is 64rem wide: a 24rem list plus this much map
 const MAX_PIN_ICONS = 3;
 
 type CampusMapProps = {
@@ -101,6 +105,7 @@ export function CampusMap({
         <MapLookPicker look={look} onChange={setLook} className="absolute top-2 right-12 z-10" />
       )}
       <Buildings3D enabled={look.tilt} color={lookStyle.building} />
+      <QuietPlaces />
       <ClearOnMapClick onClear={() => onSelect(null)} />
       <FlyToBuilding lng={target?.lng} lat={target?.lat} />
 
@@ -361,12 +366,14 @@ function FlyToBuilding({ lng, lat }: { lng: number | undefined; lat: number | un
 
   useEffect(() => {
     if (!map || lng === undefined || lat === undefined) return;
-    const wide = map.getContainer().clientWidth > 2 * DETAIL_PANEL_WIDTH;
+    const beside =
+      window.matchMedia(SIDE_BY_SIDE).matches &&
+      map.getContainer().clientWidth >= MIN_MAP_FOR_PANEL;
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     map.flyTo({
       center: [lng, lat],
       zoom: Math.max(map.getZoom(), FOCUS_ZOOM),
-      offset: [wide ? DETAIL_PANEL_WIDTH / 2 : 0, 0],
+      offset: [beside ? DETAIL_PANEL_WIDTH / 2 : 0, 0],
       duration: still ? 0 : 900,
     });
   }, [map, lng, lat]);

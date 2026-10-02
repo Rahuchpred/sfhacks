@@ -206,7 +206,9 @@ function RescueDetail({
   );
 }
 
-// Floats over the left edge of the map on wide screens, covers the list on a phone.
+// Covers the list on a phone, and on a window too narrow to fit it beside the list.
+// With room to spare it floats over the left edge of the map. The room is measured on the
+// page (a container query), because the sidebar takes its share of the window.
 export function DetailPanel({
   selection,
   buildings,
@@ -231,7 +233,11 @@ export function DetailPanel({
   return (
     <section
       aria-label="Details"
-      className="absolute inset-x-0 bottom-0 z-20 flex h-[52%] flex-col border-t bg-background md:inset-x-auto md:top-4 md:bottom-auto md:left-[25rem] md:h-auto md:max-h-[calc(100%-2rem)] md:w-96 md:rounded-xl md:border md:shadow-xl"
+      className={cn(
+        "absolute inset-x-0 bottom-0 z-20 flex h-[52%] flex-col border-t bg-background",
+        "md:@max-5xl:inset-x-auto md:@max-5xl:inset-y-0 md:@max-5xl:left-0 md:@max-5xl:h-auto md:@max-5xl:w-96 md:@max-5xl:border-t-0 md:@max-5xl:border-r",
+        "@5xl:inset-x-auto @5xl:top-4 @5xl:bottom-auto @5xl:left-[25rem] @5xl:h-auto @5xl:max-h-[calc(100%-2rem)] @5xl:w-96 @5xl:rounded-xl @5xl:border @5xl:shadow-xl",
+      )}
     >
       <div className="flex shrink-0 items-center gap-2 border-b py-2 pr-2 pl-3">
         {selection.kind !== "building" && shared ? (

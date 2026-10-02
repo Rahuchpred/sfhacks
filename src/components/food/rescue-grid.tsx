@@ -3,7 +3,7 @@
 // Mobbin reference: Sweatpals "You're in!" ticket confirmation (web) for the
 // pickups, above a plain photo card grid.
 
-import { useRequireAccount } from "@/components/auth-provider";
+import { useAuth, useRequireAccount } from "@/components/auth-provider";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Loader2, TriangleAlert, Utensils } from "lucide-react";
@@ -139,6 +139,7 @@ export function RescueGrid() {
     .sort((a, b) => ORDER[pickupState(a.pickup, now)] - ORDER[pickupState(b.pickup, now)]);
 
   const requireAccount = useRequireAccount();
+  const { ready: authReady } = useAuth();
 
   async function claim(rescue: FoodRescue): Promise<ClaimOutcome> {
     // A guest is sent to sign in first, then comes back to this page.
@@ -186,7 +187,9 @@ export function RescueGrid() {
     }
   }
 
-  const loading = campusLoading || claims.loading;
+  // Also waits for the profile: before it loads a signed-in student still looks like a
+  // guest, and Claim would send them to the onboarding.
+  const loading = campusLoading || claims.loading || !authReady;
 
   if (loading) {
     return (
