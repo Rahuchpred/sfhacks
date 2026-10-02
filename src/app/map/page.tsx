@@ -13,6 +13,7 @@ import { Legend } from "@/components/map/legend";
 import { countLabel, type Hover, type Selection } from "@/components/map/map-utils";
 import { useEventFilters, useNow } from "@/components/map/use-event-filters";
 import { useFreshIds } from "@/components/map/use-fresh-ids";
+import { SafetyAlertLayer } from "@/components/safety/safety-alert-layer";
 import { SafetyMarkers } from "@/components/safety/safety-markers";
 import { listClubs, listMyTickets, listSafetyNotices } from "@/lib/db";
 import type { Club, SafetyNotice } from "@/lib/types";
@@ -184,6 +185,7 @@ export default function MapPage() {
           onHover={setHover}
         >
           <SafetyMarkers notices={notices} buildings={buildings} />
+          <SafetyAlertLayer />
         </CampusMap>
         {!loading && !error && <Legend events={filters.events} aside={selection !== null} />}
       </div>
