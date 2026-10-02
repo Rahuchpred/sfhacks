@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useUser } from "@/components/auth-provider";
-import { getEvent, subscribeToCampus } from "@/lib/db";
+import { getEvent, listMyHostedEvents, subscribeToCampus } from "@/lib/db";
 import type { CampusEvent } from "@/lib/types";
 
 export type HostEventStatus = "loading" | "ready" | "not_found" | "not_host" | "error";
@@ -17,21 +17,44 @@ type HostEvent = {
 
 type State = Pick<HostEvent, "status" | "event" | "error">;
 
+async function canManage(
+  event: CampusEvent,
+  userId: string,
+  managed: { current: string | null },
+): Promise<boolean> {
+  const key = `${userId}:${event.id}`;
+  if (event.createdBy === userId || managed.current === key) {
+    managed.current = key;
+    return true;
+  }
+  // Only a club event can have other organizers.
+  if (!event.clubId) return false;
+  // Includes the events of every club the user organizes.
+  const hosted = await listMyHostedEvents();
+  if (!hosted.some((hostedEvent) => hostedEvent.id === event.id)) return false;
+  managed.current = key;
+  return true;
+}
+
 // Loads one event for its host and keeps its live counters fresh.
-// Anyone who did not create the event gets "not_host" and no event data.
+// The creator and any organizer of the event's club can manage it.
+// Everyone else gets "not_host" and no event data.
 export function useHostEvent(id: string): HostEvent {
   const user = useUser();
   const userId = user?.id ?? null;
   const [state, setState] = useState<State>({ status: "loading", event: null, error: null });
   const [version, setVersion] = useState(0);
 
+  // The event this user is already known to manage, so live refreshes skip the club lookup.
+  const managed = useRef<string | null>(null);
+
   const refresh = useCallback(async () => {
     if (!userId) return; // still signing in
     try {
       const event = await getEvent(id);
       if (!event) setState({ status: "not_found", event: null, error: null });
-      else if (event.createdBy !== userId) setState({ status: "not_host", event: null, error: null });
-      else setState({ status: "ready", event, error: null });
+      else if (await canManage(event, userId, managed)) setState({ status: "ready", event, error: null });
+      else setState({ status: "not_host", event: null, error: null });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not load this event.";
       // Keep showing the last good event if a background refresh fails.

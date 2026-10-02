@@ -1,11 +1,14 @@
 "use client";
 
+// Mobbin reference (web): Sweatpals, event page with the title bar, actions and RSVP list.
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
   ArrowUpRight,
   CalendarClock,
+  ChartColumn,
   MapPin,
   Pencil,
   ScanLine,
@@ -22,7 +25,6 @@ import { CancelEvent } from "./cancel-event";
 import { GuestList } from "./guest-list";
 import { HostGate } from "./host-states";
 import { eventPhase, formatEventTime, placeLabel, turnoutRate, type EventPhase } from "./host-utils";
-import { Recap } from "./recap";
 import { useHostEvent } from "./use-host-event";
 
 const countFormat = new Intl.NumberFormat();
@@ -37,11 +39,25 @@ const PHASE: Record<EventPhase, { label: string; variant: "default" | "outline" 
   past: { label: "Ended", variant: "secondary" },
 };
 
-function leftoverFoodHref(event: CampusEvent): string {
-  const query = new URLSearchParams({ tab: "food", event: event.id, building: event.buildingId });
-  if (event.room) query.set("room", event.room);
-  return `/post?${query}`;
+const dollars = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 0,
+});
+const dollarsAndCents = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+
+// "$120" or "$120.50": cents only when there are any.
+function formatCost(cost: number): string {
+  return (Number.isInteger(cost) ? dollars : dollarsAndCents).format(cost);
 }
+
+// "chips and snacks" reads "Chips and snacks" on a chip.
+function chipLabel(item: string): string {
+  return item.charAt(0).toUpperCase() + item.slice(1);
+}
+
+const DETAIL = "flex min-w-0 flex-col gap-1.5 rounded-xl bg-card p-3 ring-1 ring-foreground/10";
+const DETAIL_LABEL = "text-xs font-medium text-muted-foreground";
 
 function ManageEvent({
   event,
@@ -80,7 +96,8 @@ function ManageEvent({
   const checkedIn = Math.min(going, Math.max(0, event.checkedInCount));
   const notYet = going - checkedIn;
   const share = going > 0 ? (checkedIn / going) * 100 : 0;
-  const showLeftover = phase === "past" && event.hasFood;
+  // Leftovers can be posted once the event has started, and only for an event with food.
+  const showLeftover = phase !== "upcoming" && event.hasFood;
 
   return (
     <div className="flex flex-col gap-8">
@@ -171,7 +188,7 @@ function ManageEvent({
             </div>
           </section>
 
-          <div className={cn("grid gap-3", showLeftover ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
+          <div className="grid gap-3 sm:grid-cols-3">
             <Link href={`/host/${event.id}/check-in`} className={TILE}>
               <span className={cn(TILE_ICON, "bg-primary/10 text-primary")}>
                 <ScanLine aria-hidden="true" />
@@ -189,21 +206,70 @@ function ManageEvent({
               </span>
               Edit event
             </button>
-            {showLeftover && (
-              <Link href={leftoverFoodHref(event)} className={TILE}>
-                <span className={cn(TILE_ICON, "bg-accent/25 text-accent-foreground")}>
-                  <Utensils aria-hidden="true" />
-                </span>
-                Post leftover food
-              </Link>
-            )}
+            <Link href="/host/analytics" className={TILE}>
+              <span className={cn(TILE_ICON, "bg-primary/10 text-primary")}>
+                <ChartColumn aria-hidden="true" />
+              </span>
+              Analytics
+            </Link>
           </div>
 
-          {phase === "past" && <Recap event={event} />}
+          {showLeftover && (
+            <Link
+              href={`/host/${event.id}/food`}
+              className={cn(
+                buttonVariants({ size: "lg" }),
+                "h-12 w-full bg-accent px-5 text-base text-accent-foreground hover:bg-accent/85 sm:w-fit",
+              )}
+            >
+              <Utensils aria-hidden="true" />
+              Post leftover food
+            </Link>
+          )}
+
+          <section aria-labelledby="details-heading" className="flex flex-col gap-3">
+            <h2 id="details-heading" className="font-heading text-lg font-medium">
+              Details
+            </h2>
+            <dl className="grid gap-3 sm:grid-cols-3">
+              <div className={DETAIL}>
+                <dt className={DETAIL_LABEL}>Cost</dt>
+                <dd
+                  className={cn(
+                    "text-xl font-medium tabular-nums",
+                    event.cost === null && "text-muted-foreground",
+                  )}
+                >
+                  {event.cost === null ? "Not set" : formatCost(event.cost)}
+                </dd>
+              </div>
+              <div className={cn(DETAIL, "sm:col-span-2")}>
+                <dt className={DETAIL_LABEL}>Food</dt>
+                <dd className="flex min-h-7 flex-wrap items-center gap-1.5">
+                  {!event.hasFood ? (
+                    <span className="text-xl font-medium text-muted-foreground">None</span>
+                  ) : event.foodItems.length === 0 ? (
+                    <Badge className="h-7 bg-accent px-2.5 text-sm text-accent-foreground">
+                      Free food
+                    </Badge>
+                  ) : (
+                    event.foodItems.map((item) => (
+                      <Badge
+                        key={item}
+                        className="h-7 bg-accent px-2.5 text-sm text-accent-foreground"
+                      >
+                        {chipLabel(item)}
+                      </Badge>
+                    ))
+                  )}
+                </dd>
+              </div>
+            </dl>
+          </section>
 
           <hr className="border-border" />
 
-          <GuestList eventId={event.id} version={version} now={now} />
+          <GuestList eventId={event.id} version={version} now={now} onCheckedIn={refresh} />
 
           <hr className="border-border" />
 
