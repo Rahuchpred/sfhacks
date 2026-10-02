@@ -1,17 +1,30 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef } from "react";
+// Mobbin reference: GetYourGuide map view (web), labelled pins linked to the list beside them.
+
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Map, { Marker, NavigationControl, type MapRef } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { Utensils } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { Building, CampusEvent, FoodRescue } from "@/lib/types";
 import { EventPin, FoodPin } from "./building-pin";
-import { countLabel, groupByBuilding, type BuildingGroup, type Selection } from "./map-utils";
+import { mainCategory } from "./categories";
+import {
+  countLabel,
+  formatTime,
+  formatTimeRange,
+  groupByBuilding,
+  type Hover,
+  type Selection,
+} from "./map-utils";
 
 const SFSU_CENTER = { longitude: -122.4793, latitude: 37.7229, zoom: 15.6 };
 const MAP_STYLE = "https://tiles.openfreemap.org/styles/positron";
 const FOCUS_ZOOM = 17;
 // On wide screens the detail panel covers the left edge of the map, so focus right of it.
 const DETAIL_PANEL_WIDTH = 416;
+const MAX_PIN_ICONS = 3;
 
 type CampusMapProps = {
   buildings: Building[];
@@ -19,25 +32,34 @@ type CampusMapProps = {
   rescues: FoodRescue[];
   selection: Selection;
   selectedBuildingId: string | null;
-  hoveredBuildingId: string | null;
+  hover: Hover;
   freshIds: ReadonlySet<string>;
+  now: number;
   onSelect: (selection: Selection) => void;
-  onHoverBuilding: (buildingId: string | null) => void;
+  onHover: (hover: Hover) => void;
 };
 
-// One purple pin per building with an event count, plus a gold pin where food is open.
+type PinKind = "event" | "rescue";
+
+const optionClass =
+  "flex w-full items-start gap-2.5 rounded-md p-2 text-left transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none";
+
+// One purple pin per building showing what kind of event is there, plus a gold pin where
+// food is open. A pin holding several items opens a short list to pick from.
 export function CampusMap({
   buildings,
   events,
   rescues,
   selection,
   selectedBuildingId,
-  hoveredBuildingId,
+  hover,
   freshIds,
+  now,
   onSelect,
-  onHoverBuilding,
+  onHover,
 }: CampusMapProps) {
   const mapRef = useRef<MapRef>(null);
+  const [openPin, setOpenPin] = useState<{ kind: PinKind; buildingId: string } | null>(null);
   const groups = useMemo(
     () => groupByBuilding(buildings, events, rescues),
     [buildings, events, rescues],
@@ -51,28 +73,19 @@ export function CampusMap({
     const map = mapRef.current;
     if (!map || targetLng === undefined || targetLat === undefined) return;
     const wide = map.getContainer().clientWidth > 2 * DETAIL_PANEL_WIDTH;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     map.flyTo({
       center: [targetLng, targetLat],
       zoom: Math.max(map.getZoom(), FOCUS_ZOOM),
       offset: [wide ? DETAIL_PANEL_WIDTH / 2 : 0, 0],
-      duration: 900,
+      duration: still ? 0 : 900,
     });
   }, [targetLng, targetLat]);
 
-  function selectEvents(group: BuildingGroup) {
-    onSelect(
-      group.events.length === 1
-        ? { kind: "event", id: group.events[0].id }
-        : { kind: "building", id: group.building.id },
-    );
-  }
-
-  function selectFood(group: BuildingGroup) {
-    onSelect(
-      group.rescues.length === 1
-        ? { kind: "rescue", id: group.rescues[0].id }
-        : { kind: "building", id: group.building.id },
-    );
+  function pick(next: Selection) {
+    setOpenPin(null);
+    onHover(null);
+    onSelect(next);
   }
 
   return (
@@ -82,7 +95,13 @@ export function CampusMap({
       mapStyle={MAP_STYLE}
       attributionControl={{ compact: true }}
       style={{ width: "100%", height: "100%" }}
-      onClick={() => onSelect(null)}
+      onClick={(event) => {
+        // Pins sit inside the map, so their clicks arrive here too. Only a click on the
+        // map itself clears the selection.
+        const clicked = event.originalEvent.target;
+        if (clicked instanceof Element && clicked.closest(".maplibregl-marker")) return;
+        onSelect(null);
+      }}
     >
       <NavigationControl position="top-right" showCompass={false} />
 
@@ -90,8 +109,100 @@ export function CampusMap({
         const { building } = group;
         const both = group.events.length > 0 && group.rescues.length > 0;
         const isSelected = building.id === selectedBuildingId;
-        const isHovered = building.id === hoveredBuildingId;
-        const onHover = (hovering: boolean) => onHoverBuilding(hovering ? building.id : null);
+
+        // Shared by both pins of a building: which one is lit, and what its label says.
+        function pinState(kind: PinKind, titles: { id: string; title: string }[]) {
+          const mine = hover?.kind === kind && hover.buildingId === building.id;
+          const open = openPin?.kind === kind && openPin.buildingId === building.id;
+          const selected =
+            isSelected && selection !== null && selection.kind !== (kind === "event" ? "rescue" : "event");
+          const picked =
+            selection && selection.kind === kind
+              ? titles.find((item) => item.id === selection.id)
+              : undefined;
+          const pointed = mine && hover.id ? titles.find((item) => item.id === hover.id) : undefined;
+          const hint = open
+            ? null
+            : mine
+              ? (pointed?.title ??
+                (titles.length === 1 ? titles[0].title : (picked?.title ?? building.name)))
+              : selected
+                ? (picked?.title ?? building.name)
+                : null;
+          return {
+            hint,
+            selected,
+            hovered: mine || open,
+            dimmed: hover?.source === "list" && !mine,
+            zIndex: mine || open ? 3 : selected ? 2 : 1,
+            open,
+            onHover: (hovering: boolean) =>
+              onHover(
+                hovering
+                  ? {
+                      kind,
+                      buildingId: building.id,
+                      id: titles.length === 1 ? titles[0].id : undefined,
+                      source: "map",
+                    }
+                  : null,
+              ),
+            onOpenChange: (next: boolean) =>
+              setOpenPin(next ? { kind, buildingId: building.id } : null),
+          };
+        }
+
+        const eventPin = pinState("event", group.events);
+        const foodPin = pinState(
+          "rescue",
+          group.rescues.map((rescue) => ({ id: rescue.id, title: rescue.items })),
+        );
+        const icons = [...new Set(group.events.map((event) => mainCategory(event).icon))].slice(
+          0,
+          MAX_PIN_ICONS,
+        );
+
+        const eventButton = (
+          <EventPin
+            icons={icons}
+            count={group.events.length}
+            hasFood={group.events.some((event) => event.hasFood)}
+            label={
+              group.events.length === 1
+                ? `${group.events[0].title}, ${building.name}`
+                : `${building.name}, ${countLabel(group.events.length, "event")}`
+            }
+            hint={eventPin.hint}
+            selected={eventPin.selected}
+            hovered={eventPin.hovered}
+            dimmed={eventPin.dimmed}
+            fresh={group.events.some((event) => freshIds.has(event.id))}
+            onHover={eventPin.onHover}
+            onClick={
+              group.events.length === 1
+                ? () => pick({ kind: "event", id: group.events[0].id })
+                : undefined
+            }
+          />
+        );
+
+        const foodButton = (
+          <FoodPin
+            count={group.rescues.length}
+            label={`${building.name}, free food: ${group.rescues.map((rescue) => rescue.items).join(", ")}`}
+            hint={foodPin.hint}
+            selected={foodPin.selected}
+            hovered={foodPin.hovered}
+            dimmed={foodPin.dimmed}
+            fresh={group.rescues.some((rescue) => freshIds.has(rescue.id))}
+            onHover={foodPin.onHover}
+            onClick={
+              group.rescues.length === 1
+                ? () => pick({ kind: "rescue", id: group.rescues[0].id })
+                : undefined
+            }
+          />
+        );
 
         return (
           <Fragment key={building.id}>
@@ -100,23 +211,56 @@ export function CampusMap({
                 longitude={building.lng}
                 latitude={building.lat}
                 anchor="center"
-                offset={[both ? -15 : 0, 0]}
-                style={{ zIndex: isSelected ? 3 : isHovered ? 2 : 1 }}
-                onClick={(event) => {
-                  // Keep the click from reaching the map, which would clear the selection.
-                  event.originalEvent.stopPropagation();
-                  selectEvents(group);
-                }}
+                offset={[both ? -22 : 0, 0]}
+                style={{ zIndex: eventPin.zIndex }}
               >
-                <EventPin
-                  count={group.events.length}
-                  hasFood={group.events.some((event) => event.hasFood)}
-                  label={`${building.name}, ${countLabel(group.events.length, "event")}`}
-                  selected={isSelected && selection?.kind !== "rescue"}
-                  hovered={isHovered}
-                  fresh={group.events.some((event) => freshIds.has(event.id))}
-                  onHover={onHover}
-                />
+                {group.events.length === 1 ? (
+                  eventButton
+                ) : (
+                  <Popover open={eventPin.open} onOpenChange={eventPin.onOpenChange}>
+                    <PopoverTrigger render={eventButton} />
+                    <PopoverContent side="top" sideOffset={10} className="w-72 gap-1 p-1.5">
+                      <p className="truncate px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">
+                        {building.name}
+                      </p>
+                      <ul className="max-h-64 overflow-y-auto overscroll-contain">
+                        {group.events.map((event) => {
+                          const Icon = mainCategory(event).icon;
+                          return (
+                            <li key={event.id}>
+                              <button
+                                type="button"
+                                onClick={() => pick({ kind: "event", id: event.id })}
+                                onMouseEnter={() =>
+                                  onHover({
+                                    kind: "event",
+                                    buildingId: building.id,
+                                    id: event.id,
+                                    source: "map",
+                                  })
+                                }
+                                onMouseLeave={() => onHover(null)}
+                                className={`${optionClass} hover:bg-muted`}
+                              >
+                                <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                                  <Icon aria-hidden className="size-3.5" />
+                                </span>
+                                <span className="min-w-0">
+                                  <span className="block text-sm font-medium break-words">
+                                    {event.title}
+                                  </span>
+                                  <span className="block text-xs text-muted-foreground">
+                                    {formatTimeRange(event, now)}
+                                  </span>
+                                </span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </PopoverContent>
+                  </Popover>
+                )}
               </Marker>
             )}
 
@@ -125,20 +269,54 @@ export function CampusMap({
                 longitude={building.lng}
                 latitude={building.lat}
                 anchor="center"
-                offset={[both ? 15 : 0, 0]}
-                style={{ zIndex: isSelected ? 3 : isHovered ? 2 : 1 }}
-                onClick={(event) => {
-                  event.originalEvent.stopPropagation();
-                  selectFood(group);
-                }}
+                offset={[both ? 22 : 0, 0]}
+                style={{ zIndex: foodPin.zIndex }}
               >
-                <FoodPin
-                  label={`${building.name}, free food: ${group.rescues.map((rescue) => rescue.items).join(", ")}`}
-                  selected={isSelected && selection?.kind !== "event"}
-                  hovered={isHovered}
-                  fresh={group.rescues.some((rescue) => freshIds.has(rescue.id))}
-                  onHover={onHover}
-                />
+                {group.rescues.length === 1 ? (
+                  foodButton
+                ) : (
+                  <Popover open={foodPin.open} onOpenChange={foodPin.onOpenChange}>
+                    <PopoverTrigger render={foodButton} />
+                    <PopoverContent side="top" sideOffset={10} className="w-72 gap-1 p-1.5">
+                      <p className="truncate px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">
+                        Free food, {building.name}
+                      </p>
+                      <ul className="max-h-64 overflow-y-auto overscroll-contain">
+                        {group.rescues.map((rescue) => (
+                          <li key={rescue.id}>
+                            <button
+                              type="button"
+                              onClick={() => pick({ kind: "rescue", id: rescue.id })}
+                              onMouseEnter={() =>
+                                onHover({
+                                  kind: "rescue",
+                                  buildingId: building.id,
+                                  id: rescue.id,
+                                  source: "map",
+                                })
+                              }
+                              onMouseLeave={() => onHover(null)}
+                              className={`${optionClass} hover:bg-accent/15`}
+                            >
+                              <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
+                                <Utensils aria-hidden className="size-3.5" />
+                              </span>
+                              <span className="min-w-0">
+                                <span className="block text-sm font-medium break-words">
+                                  {rescue.items}
+                                </span>
+                                <span className="block text-xs text-muted-foreground tabular-nums">
+                                  {countLabel(rescue.portionsLeft, "portion")} left, safe until{" "}
+                                  {formatTime(rescue.safeUntil)}
+                                </span>
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </PopoverContent>
+                  </Popover>
+                )}
               </Marker>
             )}
           </Fragment>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Clock, MapPin, Users, Utensils, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, Clock, MapPin, Users, Utensils, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,7 @@ type DetailPanelProps = {
   selection: Selection;
   buildings: Building[];
   events: CampusEvent[];
+  allEvents: CampusEvent[]; // unfiltered, to name the event a rescue comes from
   rescues: FoodRescue[];
   now: number;
   onSelect: (selection: Selection) => void;
@@ -49,10 +50,33 @@ function EventDetail({ event, building, now }: { event: CampusEvent; building?: 
       </div>
 
       <div className="space-y-2">
-        <Fact icon={Users}>{event.clubName}</Fact>
+        <Fact icon={Users}>
+          {event.clubId ? (
+            <Link
+              href={`/clubs/${event.clubId}`}
+              className="rounded-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+            >
+              {event.clubName}
+            </Link>
+          ) : (
+            event.clubName
+          )}
+        </Fact>
         <Fact icon={Clock}>{formatTimeRange(event, now)}</Fact>
         <Fact icon={MapPin}>{placeLabel(building, event.room)}</Fact>
       </div>
+
+      {event.hasFood && event.foodItems.length > 0 && (
+        <ul aria-label="Food" className="flex flex-wrap gap-1.5">
+          {event.foodItems.map((item) => (
+            <li key={item}>
+              <Badge className="bg-accent text-accent-foreground capitalize">
+                <Utensils aria-hidden /> {item}
+              </Badge>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {event.description && (
         <p className="text-sm leading-relaxed text-muted-foreground break-words">
@@ -99,7 +123,15 @@ function EventDetail({ event, building, now }: { event: CampusEvent; building?: 
   );
 }
 
-function RescueDetail({ rescue, building }: { rescue: FoodRescue; building?: Building }) {
+function RescueDetail({
+  rescue,
+  building,
+  from,
+}: {
+  rescue: FoodRescue;
+  building?: Building;
+  from?: CampusEvent; // the event the food is left over from, when it is still listed
+}) {
   return (
     <div className="space-y-4 p-5">
       <div className="space-y-2">
@@ -125,6 +157,17 @@ function RescueDetail({ rescue, building }: { rescue: FoodRescue; building?: Bui
       </div>
 
       <Fact icon={MapPin}>{placeLabel(building, rescue.room)}</Fact>
+
+      {from && (
+        <Fact icon={CalendarDays}>
+          <Link
+            href={`/events/${from.id}`}
+            className="rounded-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+          >
+            {from.title}
+          </Link>
+        </Fact>
+      )}
 
       {rescue.dietary.length > 0 && (
         <ul aria-label="Dietary notes" className="flex flex-wrap gap-1.5">
@@ -164,7 +207,15 @@ function RescueDetail({ rescue, building }: { rescue: FoodRescue; building?: Bui
 }
 
 // Floats over the left edge of the map on wide screens, covers the list on a phone.
-export function DetailPanel({ selection, buildings, events, rescues, now, onSelect }: DetailPanelProps) {
+export function DetailPanel({
+  selection,
+  buildings,
+  events,
+  allEvents,
+  rescues,
+  now,
+  onSelect,
+}: DetailPanelProps) {
   if (!selection) return null;
 
   const event = selection.kind === "event" ? events.find((item) => item.id === selection.id) : undefined;
@@ -211,7 +262,13 @@ export function DetailPanel({ selection, buildings, events, rescues, now, onSele
 
       <div aria-live="polite" className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {event && <EventDetail event={event} building={building} now={now} />}
-        {rescue && <RescueDetail rescue={rescue} building={building} />}
+        {rescue && (
+          <RescueDetail
+            rescue={rescue}
+            building={building}
+            from={allEvents.find((item) => item.id === rescue.eventId)}
+          />
+        )}
 
         {selection.kind === "building" && (
           <div className="p-5">
@@ -256,7 +313,16 @@ export function DetailPanel({ selection, buildings, events, rescues, now, onSele
                       {item.room ? `, ${item.room}` : ""}
                     </span>
                     {item.hasFood && (
-                      <Badge className="mt-2 bg-accent text-accent-foreground">Free food</Badge>
+                      <span className="mt-2 flex flex-wrap gap-1.5">
+                        {item.foodItems.length === 0 && (
+                          <Badge className="bg-accent text-accent-foreground">Free food</Badge>
+                        )}
+                        {item.foodItems.map((food) => (
+                          <Badge key={food} className="bg-accent text-accent-foreground capitalize">
+                            {food}
+                          </Badge>
+                        ))}
+                      </span>
                     )}
                   </button>
                 </li>

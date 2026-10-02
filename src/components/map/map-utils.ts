@@ -8,6 +8,26 @@ export type Selection =
   | { kind: "building"; id: string }
   | null;
 
+// What the pointer is over, shared by the list and the map so each can light up the other.
+// Without an id it means the whole pin: every event (or rescue) at that building.
+// The source says which side the pointer is on, so the other side is the one that reacts.
+export type Hover = {
+  kind: "event" | "rescue";
+  buildingId: string;
+  id?: string;
+  source: "list" | "map";
+} | null;
+
+export function isHovered(
+  hover: Hover,
+  kind: "event" | "rescue",
+  buildingId: string,
+  id: string,
+): boolean {
+  if (!hover || hover.kind !== kind || hover.buildingId !== buildingId) return false;
+  return hover.id === undefined || hover.id === id;
+}
+
 export type BuildingGroup = {
   building: Building;
   events: CampusEvent[];
