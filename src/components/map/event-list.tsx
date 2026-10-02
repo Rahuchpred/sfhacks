@@ -283,13 +283,13 @@ function FeaturedRow({
               )}
             </span>
             <span className="absolute top-2 right-3 inline-flex h-5 items-center gap-1 rounded-full bg-background/95 px-2 text-xs font-semibold text-foreground">
-              <Flame aria-hidden className="size-3 text-rose-600" />
+              <Flame aria-hidden className="size-3 text-accent-foreground" />
               Most popular
             </span>
             {live && (
               <span aria-hidden className="absolute inset-x-0 bottom-0 h-1 bg-background/70">
                 <span
-                  className="block h-full origin-left bg-rose-600 transition-transform duration-500 ease-linear motion-reduce:transition-none"
+                  className="block h-full origin-left bg-emerald-600 transition-transform duration-500 ease-linear motion-reduce:transition-none"
                   style={{ transform: `scaleX(${liveProgress(event, now)})` }}
                 />
               </span>
