@@ -1,14 +1,21 @@
 "use client";
 
 // Mobbin reference: GetYourGuide map view (web), labelled pins linked to the list beside them.
+// The map itself is the mapcn component (src/components/ui/map.tsx) on MapLibre.
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import Map, { Marker, NavigationControl, type MapRef } from "react-map-gl/maplibre";
-import "maplibre-gl/dist/maplibre-gl.css";
+import { Map, MapControls, MapMarker, MarkerContent, useMap } from "@/components/ui/map";
 import { Utensils } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { Building, CampusEvent, FoodRescue } from "@/lib/types";
 import { EventPin, FoodPin } from "./building-pin";
+import {
+  Buildings3D,
+  lookById,
+  MapLookPicker,
+  useMapLook,
+  type MapLook,
+} from "./map-look";
 import { mainCategory } from "./categories";
 import {
   countLabel,
@@ -19,8 +26,8 @@ import {
   type Selection,
 } from "./map-utils";
 
-const SFSU_CENTER = { longitude: -122.4793, latitude: 37.7229, zoom: 15.6 };
-const MAP_STYLE = "https://tiles.openfreemap.org/styles/positron";
+const SFSU_CENTER: [number, number] = [-122.4793, 37.7229];
+const START_ZOOM = 15.6;
 const FOCUS_ZOOM = 17;
 // On wide screens the detail panel covers the left edge of the map, so focus right of it.
 const DETAIL_PANEL_WIDTH = 416;
@@ -38,6 +45,8 @@ type CampusMapProps = {
   onSelect: (selection: Selection) => void;
   onHover: (hover: Hover) => void;
   children?: React.ReactNode; // extra markers, drawn inside the map
+  // A fixed look with no picker, for read-only previews. Without it the visitor chooses.
+  look?: MapLook;
 };
 
 type PinKind = "event" | "rescue";
@@ -59,8 +68,12 @@ export function CampusMap({
   onSelect,
   onHover,
   children,
+  look: fixedLook,
 }: CampusMapProps) {
-  const mapRef = useRef<MapRef>(null);
+  const [savedLook, setLook] = useMapLook();
+  const look = fixedLook ?? savedLook;
+  const lookStyle = lookById(look.id);
+  const styles = useMemo(() => ({ light: lookStyle.url, dark: lookStyle.url }), [lookStyle.url]);
   const [openPin, setOpenPin] = useState<{ kind: PinKind; buildingId: string } | null>(null);
   const groups = useMemo(
     () => groupByBuilding(buildings, events, rescues),
@@ -68,21 +81,6 @@ export function CampusMap({
   );
 
   const target = buildings.find((building) => building.id === selectedBuildingId);
-  const targetLng = target?.lng;
-  const targetLat = target?.lat;
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || targetLng === undefined || targetLat === undefined) return;
-    const wide = map.getContainer().clientWidth > 2 * DETAIL_PANEL_WIDTH;
-    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    map.flyTo({
-      center: [targetLng, targetLat],
-      zoom: Math.max(map.getZoom(), FOCUS_ZOOM),
-      offset: [wide ? DETAIL_PANEL_WIDTH / 2 : 0, 0],
-      duration: still ? 0 : 900,
-    });
-  }, [targetLng, targetLat]);
 
   function pick(next: Selection) {
     setOpenPin(null);
@@ -92,20 +90,19 @@ export function CampusMap({
 
   return (
     <Map
-      ref={mapRef}
-      initialViewState={SFSU_CENTER}
-      mapStyle={MAP_STYLE}
-      attributionControl={{ compact: true }}
-      style={{ width: "100%", height: "100%" }}
-      onClick={(event) => {
-        // Pins sit inside the map, so their clicks arrive here too. Only a click on the
-        // map itself clears the selection.
-        const clicked = event.originalEvent.target;
-        if (clicked instanceof Element && clicked.closest(".maplibregl-marker")) return;
-        onSelect(null);
-      }}
+      center={SFSU_CENTER}
+      zoom={START_ZOOM}
+      theme="light"
+      styles={styles}
+      maxPitch={70}
     >
-      <NavigationControl position="top-right" showCompass={false} />
+      <MapControls position="top-right" showZoom showCompass={look.tilt} />
+      {!fixedLook && (
+        <MapLookPicker look={look} onChange={setLook} className="absolute top-2 right-12 z-10" />
+      )}
+      <Buildings3D enabled={look.tilt} color={lookStyle.building} />
+      <ClearOnMapClick onClear={() => onSelect(null)} />
+      <FlyToBuilding lng={target?.lng} lat={target?.lat} />
 
       {groups.map((group) => {
         const { building } = group;
@@ -209,13 +206,14 @@ export function CampusMap({
         return (
           <Fragment key={building.id}>
             {group.events.length > 0 && (
-              <Marker
+              <MapMarker
                 longitude={building.lng}
                 latitude={building.lat}
                 anchor="center"
                 offset={[both ? -22 : 0, 0]}
-                style={{ zIndex: eventPin.zIndex }}
+                zIndex={eventPin.zIndex}
               >
+                <MarkerContent>
                 {group.events.length === 1 ? (
                   eventButton
                 ) : (
@@ -263,17 +261,19 @@ export function CampusMap({
                     </PopoverContent>
                   </Popover>
                 )}
-              </Marker>
+                </MarkerContent>
+              </MapMarker>
             )}
 
             {group.rescues.length > 0 && (
-              <Marker
+              <MapMarker
                 longitude={building.lng}
                 latitude={building.lat}
                 anchor="center"
                 offset={[both ? 22 : 0, 0]}
-                style={{ zIndex: foodPin.zIndex }}
+                zIndex={foodPin.zIndex}
               >
+                <MarkerContent>
                 {group.rescues.length === 1 ? (
                   foodButton
                 ) : (
@@ -319,7 +319,8 @@ export function CampusMap({
                     </PopoverContent>
                   </Popover>
                 )}
-              </Marker>
+                </MarkerContent>
+              </MapMarker>
             )}
           </Fragment>
         );
@@ -327,4 +328,48 @@ export function CampusMap({
       {children}
     </Map>
   );
+}
+
+// Pins sit inside the map, so their clicks arrive at the map too. Only a click on the
+// map itself clears the selection.
+function ClearOnMapClick({ onClear }: { onClear: () => void }) {
+  const { map } = useMap();
+  const clear = useRef(onClear);
+  useEffect(() => {
+    clear.current = onClear;
+  }, [onClear]);
+
+  useEffect(() => {
+    if (!map) return;
+    const onClick = (event: { originalEvent: MouseEvent }) => {
+      const clicked = event.originalEvent.target;
+      if (clicked instanceof Element && clicked.closest(".maplibregl-marker")) return;
+      clear.current();
+    };
+    map.on("click", onClick);
+    return () => {
+      map.off("click", onClick);
+    };
+  }, [map]);
+
+  return null;
+}
+
+// Moves the camera to the selected building, keeping the current tilt.
+function FlyToBuilding({ lng, lat }: { lng: number | undefined; lat: number | undefined }) {
+  const { map } = useMap();
+
+  useEffect(() => {
+    if (!map || lng === undefined || lat === undefined) return;
+    const wide = map.getContainer().clientWidth > 2 * DETAIL_PANEL_WIDTH;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    map.flyTo({
+      center: [lng, lat],
+      zoom: Math.max(map.getZoom(), FOCUS_ZOOM),
+      offset: [wide ? DETAIL_PANEL_WIDTH / 2 : 0, 0],
+      duration: still ? 0 : 900,
+    });
+  }, [map, lng, lat]);
+
+  return null;
 }

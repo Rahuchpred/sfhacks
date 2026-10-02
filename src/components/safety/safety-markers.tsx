@@ -5,7 +5,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Marker } from "react-map-gl/maplibre";
+import { MapMarker, MarkerContent } from "@/components/ui/map";
 import { ArrowRight, Shield } from "lucide-react";
 import type { Building, SafetyNotice } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -137,19 +137,16 @@ export function SafetyMarkers({ notices, buildings }: SafetyMarkersProps) {
     const { building } = group;
     const open = openId === building.id;
     return (
-      <Marker
+      <MapMarker
         key={building.id}
         longitude={building.lng}
         latitude={building.lat}
         anchor="center"
         // Sits above the event and food pins, which share the building's center.
         offset={[0, -32]}
-        style={{ zIndex: open ? 4 : 1 }}
-        onClick={(event) => {
-          // Keep the click from reaching the map, which would clear its selection.
-          event.originalEvent.stopPropagation();
-        }}
+        zIndex={open ? 4 : 1}
       >
+        <MarkerContent>
         <SafetyPin
           group={group}
           open={open}
@@ -157,7 +154,8 @@ export function SafetyMarkers({ notices, buildings }: SafetyMarkersProps) {
             setOpenId((current) => (next ? building.id : current === building.id ? null : current))
           }
         />
-      </Marker>
+      </MarkerContent>
+      </MapMarker>
     );
   });
 }

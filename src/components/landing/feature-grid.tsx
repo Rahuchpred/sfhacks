@@ -134,8 +134,9 @@ function FeatureCard({
       {/* The light window. It lifts a little when the card is hovered. */}
       <div
         className={cn(
-          "relative min-h-0 flex-1 overflow-hidden bg-[#f8f7fb] text-foreground transition-transform duration-200 ease-out group-hover:-translate-y-1 motion-reduce:transition-none motion-reduce:group-hover:translate-y-0",
-          bleed ? "border-t border-white/10" : "mx-6 rounded-t-lg",
+          "relative min-h-0 flex-1 overflow-hidden text-foreground transition-transform duration-200 ease-out group-hover:-translate-y-1 motion-reduce:transition-none motion-reduce:group-hover:translate-y-0",
+          // The map is dark, so its window stays dark while the tiles load.
+          bleed ? "border-t border-white/10 bg-[#16161a]" : "mx-6 rounded-t-lg bg-[#f8f7fb]",
         )}
       >
         {/* Read-only: nothing inside takes focus, clicks or scroll. */}

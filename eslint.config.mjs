@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     ".claude/**",
+    // Copied from mapcn, kept as shipped.
+    "src/components/ui/map.tsx",
   ]),
 ]);
 
