@@ -382,6 +382,13 @@ export async function updateEvent(id: string, changes: EventUpdate): Promise<Cam
 }
 
 export async function deleteEvent(id: string): Promise<void> {
+  // Leftover food belongs to its event: close it first, so it does not stay on the food page.
+  const { error: foodError } = await supabase
+    .from("food_rescues")
+    .update({ status: "expired" })
+    .eq("event_id", id)
+    .eq("status", "open");
+  if (foodError) throw foodError;
   const { error } = await supabase.from("events").delete().eq("id", id);
   if (error) throw error;
 }
