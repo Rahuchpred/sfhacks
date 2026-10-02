@@ -177,7 +177,7 @@ Row level security: anyone can read `buildings`, `events` and `food_rescues`. A 
 ## Needed from you before 11:00
 
 1. A free Gemini API key from Google AI Studio (aistudio.google.com), put in `.env.local` as `GEMINI_API_KEY`. Do not paste it in chat
-2. A Supabase project for this app (free plan allows two active projects per account). Anonymous sign-ins turned on under Authentication settings
+2. ~~Supabase project~~ Done: linked to the `Raha` project (`xuxywyfbhcvkflqvgtrs`, empty, West US). URL and keys are in `.env.local`. Anonymous sign-ins get turned on in step 7
 3. Yes or no on making the repo public (required for the open-source track)
 
 ## Cut line
