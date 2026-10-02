@@ -13,6 +13,7 @@ import { SummaryCard } from "@/components/profile/summary-card";
 import { VisibilityCard } from "@/components/profile/visibility-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { MyHelp } from "@/components/help/my-help";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getMyProfile, listMyTickets } from "@/lib/db";
 import type { Profile, TicketWithEvent } from "@/lib/types";
@@ -152,11 +153,7 @@ function ProfileView({
 
           <SummaryCard profile={profile} attended={attended} onSaved={onSaved} />
 
-          {/*
-            SLOT: "Help I gave".
-            Main thread: render <MyHelp /> here, from "@/components/help/my-help".
-            It is built by another agent and is not in this worktree, so it is not imported yet.
-          */}
+          <MyHelp />
         </div>
 
         <div className="flex min-w-0 flex-col gap-6">
