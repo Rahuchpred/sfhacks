@@ -1,0 +1,327 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { ArrowLeft, CalendarPlus, Clock, Link2, MapPin } from "lucide-react";
+import { toast } from "sonner";
+import { useUser } from "@/components/auth-provider";
+import { formatTime, formatTimeRange, isHappeningNow, placeLabel } from "@/components/map/map-utils";
+import { useNow } from "@/components/map/use-event-filters";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { getEvent, getMyTicket, listBuildings, subscribeToCampus } from "@/lib/db";
+import type { Building, CampusEvent, Ticket } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import { EventCover } from "./event-cover";
+import { downloadIcs } from "./ics";
+import { RegistrationCard } from "./registration-card";
+
+type LoadState =
+  | { status: "loading" }
+  | { status: "error" }
+  | { status: "ready"; event: CampusEvent | null };
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const pastDayFormat = new Intl.DateTimeFormat("en-US", {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+// formatTimeRange is written for upcoming events, so past ones get a full date.
+function whenLabel(event: CampusEvent, now: number, ended: boolean): string {
+  if (!ended) return formatTimeRange(event, now);
+  const day = pastDayFormat.format(new Date(event.startsAt));
+  return `${day}, ${formatTime(event.startsAt)} to ${formatTime(event.endsAt)}`;
+}
+
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6 md:py-10">
+      <Link
+        href="/map"
+        className={cn(
+          buttonVariants({ variant: "ghost", size: "sm" }),
+          "mb-5 -ml-2 text-muted-foreground",
+        )}
+      >
+        <ArrowLeft aria-hidden />
+        Back to map
+      </Link>
+      {children}
+    </div>
+  );
+}
+
+const columns = "grid gap-8 md:grid-cols-[20rem_minmax(0,1fr)] md:gap-10";
+const coverColumn = "mx-auto w-full max-w-sm space-y-4 md:mx-0 md:max-w-none";
+
+function LoadingSkeleton() {
+  const pulse = "motion-reduce:animate-none";
+  return (
+    <div className={columns} role="status" aria-label="Loading…">
+      <div className={coverColumn}>
+        <Skeleton className={cn("aspect-[4/5] w-full rounded-xl", pulse)} />
+        <Skeleton className={cn("h-4 w-40", pulse)} />
+      </div>
+      <div className="space-y-5">
+        <Skeleton className={cn("h-9 w-4/5", pulse)} />
+        <Skeleton className={cn("h-4 w-64 max-w-full", pulse)} />
+        <Skeleton className={cn("h-4 w-52 max-w-full", pulse)} />
+        <Skeleton className={cn("h-32 w-full rounded-xl", pulse)} />
+        <Skeleton className={cn("h-20 w-full", pulse)} />
+      </div>
+    </div>
+  );
+}
+
+function Message({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col items-center gap-4 py-16 text-center">
+      <h1 className="text-xl font-semibold tracking-tight text-balance">{title}</h1>
+      {children}
+    </div>
+  );
+}
+
+function Fact({ icon: Icon, children }: { icon: typeof Clock; children: React.ReactNode }) {
+  return (
+    <p className="flex items-start gap-2.5 text-sm">
+      <Icon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+      <span className="min-w-0 break-words tabular-nums">{children}</span>
+    </p>
+  );
+}
+
+// The event page body. Remount with a key when the id changes.
+export function EventView({ id }: { id: string }) {
+  const user = useUser();
+  const userId = user?.id ?? null;
+  const now = useNow();
+
+  const [state, setState] = useState<LoadState>({ status: "loading" });
+  const [buildings, setBuildings] = useState<Building[]>([]);
+  const [ticket, setTicket] = useState<Ticket | null>(null);
+  const [ticketReady, setTicketReady] = useState(false);
+
+  // Set by the effect below so click handlers can ask for a fresh copy.
+  const reloadEvent = useRef<() => void>(() => {});
+
+  useEffect(() => {
+    let active = true;
+    // An id that is not a UUID can never match a row, and the database rejects it.
+    const valid = UUID.test(id);
+
+    function loadEvent() {
+      (valid ? getEvent(id) : Promise.resolve(null)).then(
+        (event) => {
+          if (active) setState({ status: "ready", event });
+        },
+        () => {
+          // A failed live refresh keeps the page that is already showing.
+          if (active) {
+            setState((current) => (current.status === "ready" ? current : { status: "error" }));
+          }
+        },
+      );
+    }
+
+    function loadTicket() {
+      if (!userId || !valid) return;
+      getMyTicket(id)
+        .then(
+          (next) => {
+            if (active) setTicket(next);
+          },
+          () => {
+            // Keep the last known ticket. Register still works without the lookup.
+          },
+        )
+        .finally(() => {
+          if (active) setTicketReady(true);
+        });
+    }
+
+    // Check-in updates the event row, so one signal refreshes the count and the ticket.
+    function reload() {
+      loadEvent();
+      loadTicket();
+    }
+
+    reloadEvent.current = loadEvent;
+    reload();
+    const unsubscribe = subscribeToCampus(reload);
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [id, userId]);
+
+  useEffect(() => {
+    let active = true;
+    listBuildings().then(
+      (list) => {
+        if (active) setBuildings(list);
+      },
+      () => {
+        // The place row falls back to "On campus".
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  function retry() {
+    setState({ status: "loading" });
+    reloadEvent.current();
+  }
+
+  function onTicketChange(next: Ticket | null) {
+    setTicket(next);
+    reloadEvent.current();
+  }
+
+  if (state.status === "loading") {
+    return (
+      <Shell>
+        <LoadingSkeleton />
+      </Shell>
+    );
+  }
+
+  if (state.status === "error") {
+    return (
+      <Shell>
+        <Message title="Could not load this event">
+          <p className="text-sm text-muted-foreground">Check your connection and try again.</p>
+          <Button onClick={retry}>Try again</Button>
+        </Message>
+      </Shell>
+    );
+  }
+
+  const event = state.event;
+  if (!event) {
+    return (
+      <Shell>
+        <Message title="This event does not exist or was removed">
+          <Link href="/map" className={buttonVariants()}>
+            See what is on campus
+          </Link>
+        </Message>
+      </Shell>
+    );
+  }
+
+  const building = buildings.find((item) => item.id === event.buildingId);
+  const place = placeLabel(building, event.room);
+  const ended = Date.parse(event.endsAt) < now;
+  const live = isHappeningNow(event, now);
+
+  function addToCalendar() {
+    if (!event) return;
+    downloadIcs({
+      id: event.id,
+      title: event.title,
+      description: event.description,
+      startsAt: event.startsAt,
+      endsAt: event.endsAt,
+      location: `${place}, San Francisco State University`,
+      url: window.location.href,
+    });
+  }
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast("Link copied");
+    } catch {
+      toast.error("Could not copy the link");
+    }
+  }
+
+  return (
+    <Shell>
+      <article className={columns}>
+        <div className={coverColumn}>
+          <EventCover event={event} />
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-muted-foreground">Hosted by</p>
+            <p className="mt-0.5 text-sm font-medium break-words">{event.clubName}</p>
+          </div>
+        </div>
+
+        <div className="min-w-0 space-y-6">
+          <div className="space-y-3">
+            {(live || event.hasFood) && (
+              <div className="flex flex-wrap gap-1.5">
+                {live && <Badge>Happening now</Badge>}
+                {event.hasFood && (
+                  <Badge className="bg-accent text-accent-foreground">Free food</Badge>
+                )}
+              </div>
+            )}
+            <h1 className="text-3xl leading-tight font-semibold tracking-tight text-balance break-words md:text-4xl">
+              {event.title}
+            </h1>
+          </div>
+
+          <div className="space-y-2">
+            <Fact icon={Clock}>{whenLabel(event, now, ended)}</Fact>
+            <Fact icon={MapPin}>{place}</Fact>
+          </div>
+
+          <RegistrationCard
+            eventId={event.id}
+            ticket={ticket}
+            ready={ticketReady}
+            ended={ended}
+            going={event.rsvpCount}
+            onTicketChange={onTicketChange}
+          />
+
+          <div className="flex flex-wrap gap-2">
+            {!ended && (
+              <Button variant="outline" onClick={addToCalendar}>
+                <CalendarPlus aria-hidden />
+                Add to calendar
+              </Button>
+            )}
+            <Button variant="outline" onClick={copyLink}>
+              <Link2 aria-hidden />
+              Copy link
+            </Button>
+          </div>
+
+          {(event.description || event.tags.length > 0) && (
+            <section aria-labelledby="about-heading" className="space-y-3 border-t pt-6">
+              <h2 id="about-heading" className="text-base font-semibold tracking-tight">
+                About
+              </h2>
+              {event.description && (
+                <p className="text-sm leading-relaxed break-words whitespace-pre-line text-muted-foreground">
+                  {event.description}
+                </p>
+              )}
+              {event.tags.length > 0 && (
+                <ul aria-label="Tags" className="flex flex-wrap gap-1.5">
+                  {event.tags.map((tag) => (
+                    <li key={tag}>
+                      <Badge variant="secondary" className="capitalize">
+                        {tag}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+        </div>
+      </article>
+    </Shell>
+  );
+}
