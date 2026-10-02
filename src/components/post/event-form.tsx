@@ -2,7 +2,8 @@
 
 // Reference: Sweatpals "Create event" (Mobbin, web): cover image beside a short
 // stack of rows, a large name field and one Publish button. The date and time
-// block follows Square "New project" (see when-picker.tsx).
+// block follows Square "New project" (see when-picker.tsx). The forecast card
+// under "Where" follows Calendly "New one-off meeting" (see planner/slot-check.tsx).
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import Link from "next/link";
 import {
@@ -41,7 +42,9 @@ import type {
   ExtractEventResponse,
   MyClub,
 } from "@/lib/types";
+import type { PlanOption } from "@/lib/planner-types";
 import { cn } from "@/lib/utils";
+import { SlotCheck } from "@/components/planner/slot-check";
 import { fieldControlProps, IssueLine } from "./field";
 import {
   daysBetween,
@@ -52,6 +55,7 @@ import {
   useLeaveWarning,
 } from "./form-utils";
 import { ImageDrop } from "./image-drop";
+import type { EventPrefill } from "./prefill";
 import { WhenPicker, withStart, type When } from "./when-picker";
 
 type Values = {
@@ -114,6 +118,21 @@ function fromEvent(event: CampusEvent): Values {
   };
 }
 
+function fromPrefill(prefill: EventPrefill): Values {
+  return {
+    ...EMPTY,
+    title: prefill.title,
+    clubId: prefill.clubId,
+    clubName: prefill.clubName,
+    buildingId: prefill.buildingId,
+    room: prefill.room,
+    when: toWhen(prefill.startsAt, prefill.endsAt) ?? NO_WHEN,
+    description: prefill.description,
+    tags: prefill.tags.filter((tag) => (EVENT_TAGS as readonly string[]).includes(tag)),
+    hasFood: prefill.hasFood,
+  };
+}
+
 function toDraft(values: Values): EventDraft {
   const { date, start, end, endDays } = values.when;
   return {
@@ -156,14 +175,19 @@ export type EventFormProps = {
   buildings: Building[];
   // Set to edit an existing event: no AI draft step, and saving updates it.
   initial?: CampusEvent;
+  // Set when the organizer picked an option on /plan: the new event starts filled in.
+  prefill?: EventPrefill;
   onSaved?: (event: CampusEvent) => void;
   onCancel?: () => void;
 };
 
-export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormProps) {
+export function EventForm({ buildings, initial, prefill, onSaved, onCancel }: EventFormProps) {
   const editing = initial !== undefined;
-  const [startValues] = useState<Values>(() => (initial ? fromEvent(initial) : EMPTY));
+  const [startValues] = useState<Values>(() =>
+    initial ? fromEvent(initial) : prefill ? fromPrefill(prefill) : EMPTY,
+  );
   const formRef = useRef<HTMLFormElement>(null);
+  const [mountedAt] = useState(() => Date.now());
 
   const [flyerUrl, setFlyerUrl] = useState<string | null>(initial?.flyerUrl ?? null);
   const [uploading, setUploading] = useState(false);
@@ -281,6 +305,18 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
     if (url && !editing && readKey === null) read(url, text);
   }
 
+  // One click on a better slot from the forecast card moves the event there.
+  function applySlot(slot: PlanOption) {
+    setValues((current) => ({
+      ...current,
+      when: toWhen(slot.startsAt, slot.endsAt) ?? current.when,
+      buildingId: buildings.some((building) => building.id === slot.buildingId)
+        ? slot.buildingId
+        : current.buildingId,
+      room: slot.room || current.room,
+    }));
+  }
+
   const dirty = values !== startValues || flyerUrl !== (initial?.flyerUrl ?? null) || text !== "";
   useLeaveWarning(!published && dirty);
 
@@ -310,6 +346,24 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
   const emptyCount = Object.values(empty).filter(Boolean).length;
   const required = (group: Group) => showMissing && empty[group];
   const blocked = errorCount + (showMissing ? emptyCount : 0);
+
+  // The forecast card needs a place and a time that has not passed. It never blocks anything.
+  const slotRequest =
+    draft.buildingId &&
+    draft.startsAt &&
+    draft.endsAt &&
+    new Date(draft.endsAt) > new Date(draft.startsAt) &&
+    new Date(draft.endsAt).getTime() > mountedAt
+      ? {
+          clubId: values.clubId ?? undefined,
+          tags: values.tags,
+          buildingId: draft.buildingId,
+          room: draft.room ?? undefined,
+          startsAt: draft.startsAt,
+          endsAt: draft.endsAt,
+          hasFood: values.hasFood,
+        }
+      : null;
 
   const isReading = reading.state === "reading";
   const busy = isReading || publishing;
@@ -639,6 +693,8 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
             </div>
             <BlockIssues id="event-where-issues" issues={whereIssues} />
           </div>
+
+          <SlotCheck request={slotRequest} onApply={applySlot} />
 
           <div className={cn(tile, "flex flex-col gap-2 p-3")}>
             <label htmlFor="event-description" className={rowLabel}>
