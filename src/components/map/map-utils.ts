@@ -49,8 +49,30 @@ export function groupByBuilding(
   );
 }
 
-export function isHappeningNow(event: CampusEvent, now: number): boolean {
+export function isHappeningNow(
+  event: Pick<CampusEvent, "startsAt" | "endsAt">,
+  now: number,
+): boolean {
   return Date.parse(event.startsAt) <= now && now <= Date.parse(event.endsAt);
+}
+
+// "45 min", "1 hr 20 min" or "3 hr". Rounds up, so the last minute still reads "1 min".
+export function durationLabel(ms: number): string {
+  const minutes = Math.max(1, Math.ceil(ms / 60_000));
+  if (minutes < 60) return `${minutes} min`;
+  const rest = minutes % 60;
+  return rest === 0 ? `${minutes / 60} hr` : `${Math.floor(minutes / 60)} hr ${rest} min`;
+}
+
+// How far through a live event the clock is, from 0 to 1.
+export function liveProgress(
+  event: Pick<CampusEvent, "startsAt" | "endsAt">,
+  now: number,
+): number {
+  const start = Date.parse(event.startsAt);
+  const end = Date.parse(event.endsAt);
+  if (end <= start) return 1;
+  return Math.min(1, Math.max(0, (now - start) / (end - start)));
 }
 
 const timeFormat = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
