@@ -128,6 +128,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const current = ALL_ITEMS.find((item) => isActive(pathname, item));
   const title = current?.label ?? (pathname.startsWith("/profile") ? "Profile" : "");
 
+  // The landing page is a marketing page: it runs full width with no sidebar.
+  if (pathname === "/") {
+    return <main className="h-dvh overflow-y-auto bg-background">{children}</main>;
+  }
+
   return (
     <SidebarProvider className="h-dvh">
       <Sidebar collapsible="icon">
