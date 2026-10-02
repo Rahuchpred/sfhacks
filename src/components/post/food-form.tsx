@@ -29,6 +29,7 @@ import { ImageDrop } from "./image-drop";
 type Values = {
   items: string;
   portions: string;
+  maxPerPerson: string;
   dietary: string; // comma separated
   safeUntil: string; // datetime-local value
   buildingId: string;
@@ -40,6 +41,7 @@ type Errors = Partial<Record<FieldKey, string>>;
 const EMPTY: Values = {
   items: "",
   portions: "",
+  maxPerPerson: "1",
   dietary: "",
   safeUntil: "",
   buildingId: "",
@@ -54,6 +56,10 @@ function validate(values: Values): Errors {
   const portions = Number(values.portions);
   if (!Number.isInteger(portions) || portions < 1) {
     errors.portions = "Enter a whole number of portions, at least 1.";
+  }
+  const maxPerPerson = Number(values.maxPerPerson);
+  if (!Number.isInteger(maxPerPerson) || maxPerPerson < 1 || maxPerPerson > 10) {
+    errors.maxPerPerson = "Enter a whole number from 1 to 10.";
   }
   const safeUntil = fromLocalInput(values.safeUntil);
   if (!safeUntil) errors.safeUntil = "Set the time the food is safe until.";
@@ -151,6 +157,7 @@ export function FoodForm({ buildings }: { buildings: Building[] }) {
         photoUrl,
         items: values.items.trim(),
         portions: Number(values.portions),
+        maxPerPerson: Number(values.maxPerPerson),
         dietary: parseTags(values.dietary),
         safeUntil,
       });
@@ -293,6 +300,25 @@ export function FoodForm({ buildings }: { buildings: Building[] }) {
                 step={1}
                 value={values.portions}
                 onChange={(event) => update("portions", event.target.value)}
+              />
+            </Field>
+
+            <Field
+              id="food-maxPerPerson"
+              label="Limit per student"
+              issues={issues("maxPerPerson")}
+              hint="How many portions one student can take."
+            >
+              <Input
+                {...fieldControlProps("food-maxPerPerson", issues("maxPerPerson"))}
+                name="maxPerPerson"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={10}
+                step={1}
+                value={values.maxPerPerson}
+                onChange={(event) => update("maxPerPerson", event.target.value)}
               />
             </Field>
 

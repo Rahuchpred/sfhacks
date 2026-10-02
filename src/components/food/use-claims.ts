@@ -3,13 +3,14 @@
 import { useCallback, useSyncExternalStore } from "react";
 import type { FoodRescue } from "@/lib/types";
 
-// Stub until db.ts has listMyClaims() (see docs/plans/requests-food.md).
-// Claims this browser made are remembered in localStorage.
+// Claims this browser made are remembered in localStorage, with enough detail
+// to show the pickup after the rescue leaves the open list. The server enforces
+// the real per-student limit in claim_portion().
 
 export type HeldClaim = Pick<
   FoodRescue,
   "id" | "items" | "buildingId" | "room" | "safeUntil" | "photoUrl"
->;
+> & { count: number }; // portions held
 
 const STORAGE_KEY = "gator-radar:claims";
 const KEEP_AFTER_MS = 24 * 60 * 60 * 1000;
@@ -33,7 +34,8 @@ function isHeldClaim(value: unknown): value is HeldClaim {
     typeof claim.buildingId === "string" &&
     (typeof claim.room === "string" || claim.room === null) &&
     typeof claim.safeUntil === "string" &&
-    typeof claim.photoUrl === "string"
+    typeof claim.photoUrl === "string" &&
+    typeof claim.count === "number"
   );
 }
 
@@ -87,10 +89,11 @@ function subscribe(onChange: () => void): () => void {
   };
 }
 
-function holdClaim(rescue: FoodRescue): void {
+// Records portions held for a rescue. Pass a count to set it outright, which is
+// used when the server says the limit was already reached.
+function holdClaim(rescue: FoodRescue, count?: number): void {
   const current = getSnapshot();
-  if (current.some((claim) => claim.id === rescue.id)) return;
-
+  const existing = current.find((claim) => claim.id === rescue.id);
   const claim: HeldClaim = {
     id: rescue.id,
     items: rescue.items,
@@ -98,8 +101,9 @@ function holdClaim(rescue: FoodRescue): void {
     room: rescue.room,
     safeUntil: rescue.safeUntil,
     photoUrl: rescue.photoUrl,
+    count: count ?? Math.min((existing?.count ?? 0) + 1, rescue.maxPerPerson),
   };
-  const raw = JSON.stringify([...current, claim]);
+  const raw = JSON.stringify([...current.filter((held) => held.id !== rescue.id), claim]);
   try {
     window.localStorage.setItem(STORAGE_KEY, raw);
   } catch {
@@ -111,9 +115,14 @@ function holdClaim(rescue: FoodRescue): void {
 export function useClaims(): {
   held: HeldClaim[];
   isHeld(id: string): boolean;
-  hold(rescue: FoodRescue): void;
+  heldCount(id: string): number;
+  hold(rescue: FoodRescue, count?: number): void;
 } {
   const held = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const isHeld = useCallback((id: string) => held.some((claim) => claim.id === id), [held]);
-  return { held, isHeld, hold: holdClaim };
+  const heldCount = useCallback(
+    (id: string) => held.find((claim) => claim.id === id)?.count ?? 0,
+    [held],
+  );
+  return { held, isHeld, heldCount, hold: holdClaim };
 }

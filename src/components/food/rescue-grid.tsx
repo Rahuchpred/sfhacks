@@ -34,7 +34,7 @@ function SkeletonCard() {
 export function RescueGrid() {
   const { buildings, rescues, loading, error } = useCampus();
   const now = useNow(1000);
-  const { held, isHeld, hold } = useClaims();
+  const { held, isHeld, heldCount, hold } = useClaims();
 
   const buildingById = useMemo(
     () => new Map(buildings.map((building) => [building.id, building])),
@@ -103,7 +103,10 @@ export function RescueGrid() {
               >
                 <Check aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{claim.items}</p>
+                  <p className="truncate font-medium">
+                    {claim.count > 1 ? `${claim.count} x ` : ""}
+                    {claim.items}
+                  </p>
                   <p className="text-pretty break-words text-muted-foreground">
                     {placeLabel(buildingById.get(claim.buildingId), claim.room)}
                   </p>
@@ -143,7 +146,7 @@ export function RescueGrid() {
                   rescue={rescue}
                   building={buildingById.get(rescue.buildingId)}
                   now={now}
-                  held={isHeld(rescue.id)}
+                  heldCount={heldCount(rescue.id)}
                   onClaimed={hold}
                 />
               </li>

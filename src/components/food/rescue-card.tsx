@@ -14,8 +14,8 @@ type RescueCardProps = {
   rescue: FoodRescue;
   building: Building | undefined;
   now: number; // ms from the grid's shared clock
-  held: boolean; // this browser already claimed it
-  onClaimed: (rescue: FoodRescue) => void;
+  heldCount: number; // portions this browser already claimed
+  onClaimed: (rescue: FoodRescue, count?: number) => void;
 };
 
 // "Cesar Chavez Student Center, Rosa Parks A-C", or "Campus" with no building.
@@ -24,7 +24,7 @@ export function placeLabel(building: Building | undefined, room: string | null):
   return room ? `${name}, ${room}` : name;
 }
 
-export function RescueCard({ rescue, building, now, held, onClaimed }: RescueCardProps) {
+export function RescueCard({ rescue, building, now, heldCount, onClaimed }: RescueCardProps) {
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   // Set once the server says this rescue can no longer be claimed.
@@ -36,6 +36,8 @@ export function RescueCard({ rescue, building, now, held, onClaimed }: RescueCar
   const safeTime = formatClock(rescue.safeUntil);
   const left = Math.max(0, Math.min(rescue.portionsLeft, rescue.portions));
   const percent = rescue.portions > 0 ? (left / rescue.portions) * 100 : 0;
+  const held = heldCount > 0;
+  const canClaimMore = heldCount < rescue.maxPerPerson && left > 0;
 
   async function claim() {
     if (busy.current) return;
@@ -54,8 +56,8 @@ export function RescueCard({ rescue, building, now, held, onClaimed }: RescueCar
       }
       switch (result.reason) {
         case "already_claimed":
-          onClaimed(rescue);
-          toast.info("You already hold a portion here");
+          onClaimed(rescue, rescue.maxPerPerson);
+          toast.info("You already hold the most one student can take here");
           break;
         case "gone":
           setClosed(true);
@@ -141,17 +143,25 @@ export function RescueCard({ rescue, building, now, held, onClaimed }: RescueCar
         </p>
 
         <div className="mt-auto space-y-2">
-          {held ? (
+          {rescue.maxPerPerson > 1 && (
+            <p className="text-xs text-muted-foreground">
+              Up to {rescue.maxPerPerson} portions per student.
+            </p>
+          )}
+          {held && (
             <div className="flex items-start gap-2.5 rounded-lg border border-accent/40 bg-accent/15 p-3">
               <Check aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
               <div className="min-w-0">
-                <p className="font-medium">Your portion is held</p>
+                <p className="font-medium">
+                  {heldCount === 1 ? "Your portion is held" : `Your ${heldCount} portions are held`}
+                </p>
                 <p className="text-pretty break-words text-muted-foreground">
                   Pick it up at {place} before {safeTime}.
                 </p>
               </div>
             </div>
-          ) : (
+          )}
+          {(!held || canClaimMore) && (
             <Button
               type="button"
               size="lg"
@@ -168,7 +178,7 @@ export function RescueCard({ rescue, building, now, held, onClaimed }: RescueCar
                   Claiming…
                 </>
               ) : (
-                "Claim a portion"
+                held ? "Claim another portion" : "Claim a portion"
               )}
             </Button>
           )}
@@ -178,7 +188,7 @@ export function RescueCard({ rescue, building, now, held, onClaimed }: RescueCar
             aria-live="polite"
             className="text-pretty text-muted-foreground empty:hidden"
           >
-            {held ? null : message}
+            {message}
           </p>
         </div>
       </CardContent>
