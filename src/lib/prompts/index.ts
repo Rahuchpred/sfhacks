@@ -95,7 +95,7 @@ export function estimateFoodPrompt(): string {
 Rules:
 - "items": a short plain list of what you see, e.g. "Cheese pizza, veggie wraps".
 - "portions": a careful estimate of single servings left. When unsure, estimate low.
-- "dietary": tags you can actually see evidence for, from: vegetarian, vegan, contains meat, contains dairy, contains gluten, contains nuts, unknown. Use "unknown" when you cannot tell. Never guess that food is free of an allergen.
+- "dietary": tags you can actually see evidence for, from: vegetarian, vegan, contains meat, contains dairy, contains gluten, contains nuts. Leave the list empty when you cannot tell. Never guess that food is free of an allergen.
 - "category": "perishable" for anything cooked, hot, cut, dairy, meat or opened. "shelf_stable" only for sealed packaged items like chips, granola bars or canned drinks. When unsure, use "perishable".
 
 Reply with only this JSON object, no other text:
