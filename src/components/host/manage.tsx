@@ -199,7 +199,7 @@ function ManageEvent({
             )}
           </div>
 
-          {phase === "past" && <Recap event={event} place={place} />}
+          {phase === "past" && <Recap event={event} />}
 
           <hr className="border-border" />
 

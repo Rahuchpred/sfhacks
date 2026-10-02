@@ -1,37 +1,19 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { FileText, Loader2, Sparkles, TriangleAlert } from "lucide-react";
+import { Loader2, Sparkles, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { CampusEvent } from "@/lib/types";
-import { formatEventTime, turnoutRate } from "./host-utils";
+import { postJson } from "@/lib/api";
+import type { CampusEvent, EventRecapResponse } from "@/lib/types";
 
 type State =
   | { kind: "idle" }
   | { kind: "loading" }
   | { kind: "ai"; text: string }
-  | { kind: "placeholder"; text: string }
   | { kind: "error"; message: string };
 
-const countFormat = new Intl.NumberFormat();
-
-function people(count: number): string {
-  return count === 1 ? "1 person" : `${countFormat.format(count)} people`;
-}
-
-// Used only while the recap route does not exist. Built from the event's own numbers.
-function placeholderRecap(event: CampusEvent, place: string | undefined): string {
-  const where = place ? ` at ${place}` : "";
-  const intro = `${event.title} ran ${formatEventTime(event)}${where}.`;
-  const rate = turnoutRate(event.checkedInCount, event.rsvpCount);
-  if (rate === null) return `${intro} No one registered.`;
-  return `${intro} ${people(event.rsvpCount)} registered and ${people(
-    event.checkedInCount,
-  )} checked in, a turnout of ${countFormat.format(rate)}%.`;
-}
-
-export function Recap({ event, place }: { event: CampusEvent; place?: string }) {
+export function Recap({ event }: { event: CampusEvent }) {
   const [state, setState] = useState<State>({ kind: "idle" });
   const busy = useRef(false);
 
@@ -40,35 +22,20 @@ export function Recap({ event, place }: { event: CampusEvent; place?: string }) 
     busy.current = true;
     setState({ kind: "loading" });
     try {
-      const response = await fetch("/api/ai/event-recap", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId: event.id }),
+      const result = await postJson<EventRecapResponse>("/api/ai/event-recap", {
+        eventId: event.id,
       });
-      if (response.status === 404) {
-        setState({ kind: "placeholder", text: placeholderRecap(event, place) });
-        return;
-      }
-      const body: unknown = await response.json().catch(() => null);
-      const data = (body ?? {}) as { recap?: unknown; error?: unknown };
-      if (response.ok && typeof data.recap === "string" && data.recap.trim()) {
-        setState({ kind: "ai", text: data.recap.trim() });
-      } else {
-        const message =
-          typeof data.error === "string" && data.error
-            ? data.error
-            : "Could not write the recap.";
-        setState({ kind: "error", message });
-      }
-    } catch {
-      setState({ kind: "error", message: "Could not reach the server. Check your connection." });
+      setState({ kind: "ai", text: result.recap.trim() });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not write the recap.";
+      setState({ kind: "error", message });
     } finally {
       busy.current = false;
     }
   }
 
   const loading = state.kind === "loading";
-  const done = state.kind === "ai" || state.kind === "placeholder";
+  const done = state.kind === "ai";
 
   return (
     <section aria-labelledby="recap-heading">
@@ -92,16 +59,6 @@ export function Recap({ event, place }: { event: CampusEvent; place?: string }) 
                   Written by AI. Check it before you share it.
                 </p>
                 <p className="text-sm text-pretty break-words whitespace-pre-line">{state.text}</p>
-              </>
-            )}
-            {state.kind === "placeholder" && (
-              <>
-                <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                  <FileText aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-                  Placeholder recap from your event&apos;s numbers. The AI version is not
-                  connected yet.
-                </p>
-                <p className="text-sm text-pretty break-words tabular-nums">{state.text}</p>
               </>
             )}
           </div>

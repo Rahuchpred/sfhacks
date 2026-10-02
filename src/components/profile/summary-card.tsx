@@ -38,7 +38,7 @@ export function SummaryCard({ profile, attended, onSaved }: Props) {
     if (!profile || blocked) return;
     setWriting(true);
     try {
-      setDraft(await writeSummary(profile, attended));
+      setDraft(await writeSummary());
     } catch (error) {
       toast.error(errorMessage(error, "Could not write a summary. Try again."));
     } finally {
