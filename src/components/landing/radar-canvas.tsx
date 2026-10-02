@@ -162,15 +162,17 @@ export function RadarCanvas({
     }
 
     // The loop only runs while the hero is on screen and the tab is visible.
+    // When it is paused, one frame is still painted so the hero is never blank.
     function sync() {
       cancelAnimationFrame(raf);
       if (still) draw(0);
       else if (onScreen && !document.hidden) raf = requestAnimationFrame(loop);
+      else draw(performance.now());
     }
 
     const resize = new ResizeObserver(() => {
       layout();
-      if (still) draw(0);
+      if (still || document.hidden) draw(still ? 0 : performance.now());
     });
     const visible = new IntersectionObserver(([entry]) => {
       onScreen = entry.isIntersecting;
