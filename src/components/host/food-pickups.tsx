@@ -11,8 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { confirmPickup, listRescueClaims } from "@/lib/db";
-import type { FoodRescue, RescueClaim } from "@/lib/types";
+import { FOOD_POST_LABELS, foodPostState, type FoodPost } from "@/lib/db-food";
+import type { RescueClaim } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { FoodActions, type FoodChange } from "./food-actions";
 import {
   GOLD_BUTTON,
   PICKUP_CODE_LENGTH,
@@ -141,12 +143,6 @@ function Stat({ label, value, strong }: { label: string; value: number; strong?:
   );
 }
 
-const STATUS: Record<FoodRescue["status"], string> = {
-  open: "Open",
-  gone: "All claimed",
-  expired: "Ended",
-};
-
 type ClaimsState =
   | { status: "loading"; claims: RescueClaim[] }
   | { status: "ready"; claims: RescueClaim[] }
@@ -157,11 +153,13 @@ export function FoodPickups({
   tick,
   now,
   onConfirmed,
+  onChanged,
 }: {
-  rescue: FoodRescue;
+  rescue: FoodPost;
   tick: number; // bumps on every live change and every 15 seconds
   now: number;
   onConfirmed: () => void;
+  onChanged: (change: FoodChange) => void;
 }) {
   const [state, setState] = useState<ClaimsState>({ status: "loading", claims: [] });
   const [banner, setBanner] = useState<Banner>({ kind: "idle" });
@@ -253,6 +251,8 @@ export function FoodPickups({
     .filter((claim) => claim.pickedUpAt)
     .sort((a, b) => Date.parse(b.pickedUpAt ?? "") - Date.parse(a.pickedUpAt ?? ""));
   const safeClock = formatClock(rescue.safeUntil);
+  const postState = foodPostState(rescue, now);
+  const closed = postState === "closed";
 
   return (
     <section
@@ -278,12 +278,14 @@ export function FoodPickups({
           </p>
         </div>
         <Badge
-          variant={rescue.status === "open" ? "default" : "secondary"}
-          className={cn("shrink-0", rescue.status === "open" && "bg-accent text-accent-foreground")}
+          variant={postState === "open" ? "default" : "secondary"}
+          className={cn("shrink-0", postState === "open" && "bg-accent text-accent-foreground")}
         >
-          {STATUS[rescue.status]}
+          {FOOD_POST_LABELS[postState]}
         </Badge>
       </header>
+
+      <FoodActions post={rescue} held={holds.length} now={now} onChanged={onChanged} />
 
       <dl className="grid grid-cols-4 gap-2" aria-live="polite">
         <Stat label="Posted" value={rescue.portions} />
@@ -292,8 +294,15 @@ export function FoodPickups({
         <Stat label="Picked up" value={pickedUp.length} />
       </dl>
 
-      <form
-        noValidate
+      {closed && (
+        <p className="rounded-xl border border-dashed px-3 py-3 text-sm text-pretty text-muted-foreground">
+          Closed. Students no longer see this post, and its holds were cancelled.
+        </p>
+      )}
+
+      {!closed && (
+        <form
+          noValidate
         onSubmit={(formEvent) => {
           formEvent.preventDefault();
           void submit(typed);
@@ -334,9 +343,10 @@ export function FoodPickups({
             Confirm
           </Button>
         </div>
-      </form>
+        </form>
+      )}
 
-      <ResultBanner banner={banner} attempt={attempt} />
+      {!closed && <ResultBanner banner={banner} attempt={attempt} />}
 
       {state.status === "loading" && (
         <div aria-busy="true" className="flex flex-col gap-2">

@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useUser } from "@/components/auth-provider";
 import { getEvent, listMyClaims, listRescuesByIds, releaseExpiredClaims } from "@/lib/db";
+import { dismissClaimNotice, listMyClaimNotices, type ClaimNotice } from "@/lib/db-food";
 import type { CampusEvent, FoodRescue, MyClaim } from "@/lib/types";
 
 // The student's pickups come from the database (listMyClaims), never from
 // browser storage. The database deletes a hold when it expires, so a hold this
 // page has already seen is kept in memory and shown as expired until dismissed.
+// A hold cancelled by the club (post closed or removed) comes back as a notice.
 
 export type Pickup = MyClaim & {
   released: boolean; // the database already put this portion back on the list
@@ -25,31 +27,36 @@ const POLL_MS = 10_000;
 // Anonymous sign-in normally lands in under a second. Past this, stop waiting.
 const AUTH_WAIT_MS = 5_000;
 
-function merge(previous: Pickup[], fresh: MyClaim[]): Pickup[] {
+function merge(previous: Pickup[], fresh: MyClaim[], notices: ClaimNotice[]): Pickup[] {
   const freshIds = new Set(fresh.map((claim) => claim.id));
+  // The club cancelled these. The notice stands in for them, not "Hold expired".
+  const cancelled = new Set(notices.flatMap((notice) => notice.claimIds));
   // A hold that vanished without a pickup was released by the database.
   const released = previous
     .filter((pickup) => !freshIds.has(pickup.id) && !pickup.pickedUpAt)
     .map((pickup) => ({ ...pickup, released: true }));
-  return [...fresh.map((claim) => ({ ...claim, released: false })), ...released].sort(
-    (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt),
-  );
+  return [...fresh.map((claim) => ({ ...claim, released: false })), ...released]
+    .filter((pickup) => !cancelled.has(pickup.id))
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
 }
 
 // `rescueKey` changes whenever the live rescue list changes, which refreshes
 // the claims too.
 export function useClaims(rescueKey: string): {
   pickups: Pickup[];
+  notices: ClaimNotice[];
   loading: boolean;
   error: string | null;
   refresh(): Promise<void>;
   dismiss(ids: string[]): void;
+  dismissNotice(id: string): Promise<void>;
 } {
   const uid = useUser()?.id ?? null;
-  const [state, setState] = useState<{ uid: string | null; pickups: Pickup[] }>({
-    uid: null,
-    pickups: [],
-  });
+  const [state, setState] = useState<{
+    uid: string | null;
+    pickups: Pickup[];
+    notices: ClaimNotice[];
+  }>({ uid: null, pickups: [], notices: [] });
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [gaveUp, setGaveUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,11 +69,19 @@ export function useClaims(rescueKey: string): {
     const request = ++latest.current;
     try {
       const fresh = await listMyClaims();
+      // Read after the claims, so a hold missing from them already has its notice.
+      // Without the notices the pickups still work, so a failure here is not an error.
+      const notices = await listMyClaimNotices().catch(() => null);
       if (request !== latest.current) return;
-      setState((current) => ({
-        uid,
-        pickups: merge(current.uid === uid ? current.pickups : [], fresh),
-      }));
+      setState((current) => {
+        const mine = current.uid === uid;
+        const nextNotices = notices ?? (mine ? current.notices : []);
+        return {
+          uid,
+          pickups: merge(mine ? current.pickups : [], fresh, nextNotices),
+          notices: nextNotices,
+        };
+      });
       setError(null);
     } catch (cause) {
       if (request !== latest.current) return;
@@ -140,12 +155,30 @@ export function useClaims(rescueKey: string): {
     setDismissed((current) => new Set([...current, ...ids]));
   }, []);
 
+  const notices = useMemo(
+    () => (state.uid === uid ? state.notices.filter((notice) => !dismissed.has(notice.id)) : []),
+    [state, uid, dismissed],
+  );
+
+  // Hidden at once, then deleted. It comes back if the delete fails.
+  const dismissNotice = useCallback(async (id: string) => {
+    setDismissed((current) => new Set([...current, id]));
+    try {
+      await dismissClaimNotice(id);
+    } catch (cause) {
+      setDismissed((current) => new Set([...current].filter((item) => item !== id)));
+      throw cause;
+    }
+  }, []);
+
   return {
     pickups,
+    notices,
     loading: uid ? loadedFor !== uid : !gaveUp,
     error,
     refresh: load,
     dismiss,
+    dismissNotice,
   };
 }
 
