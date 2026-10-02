@@ -63,6 +63,39 @@ export type Database = {
         }
         Relationships: []
       }
+      claim_notices: {
+        Row: {
+          claim_ids: string[]
+          created_at: string
+          food_name: string
+          id: string
+          portions: number
+          reason: string
+          rescue_id: string
+          uid: string
+        }
+        Insert: {
+          claim_ids: string[]
+          created_at?: string
+          food_name: string
+          id?: string
+          portions: number
+          reason: string
+          rescue_id: string
+          uid: string
+        }
+        Update: {
+          claim_ids?: string[]
+          created_at?: string
+          food_name?: string
+          id?: string
+          portions?: number
+          reason?: string
+          rescue_id?: string
+          uid?: string
+        }
+        Relationships: []
+      }
       claims: {
         Row: {
           code: string
@@ -245,6 +278,83 @@ export type Database = {
         }
         Relationships: []
       }
+      conversation_reads: {
+        Row: {
+          conversation_id: string
+          last_read_at: string
+          uid: string
+        }
+        Insert: {
+          conversation_id: string
+          last_read_at?: string
+          uid: string
+        }
+        Update: {
+          conversation_id?: string
+          last_read_at?: string
+          uid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_reads_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          closed_at: string | null
+          closed_side: string | null
+          created_at: string
+          event_id: string | null
+          help_offer_id: string | null
+          id: string
+          kind: string
+          last_message_at: string | null
+          student_id: string | null
+        }
+        Insert: {
+          closed_at?: string | null
+          closed_side?: string | null
+          created_at?: string
+          event_id?: string | null
+          help_offer_id?: string | null
+          id?: string
+          kind: string
+          last_message_at?: string | null
+          student_id?: string | null
+        }
+        Update: {
+          closed_at?: string | null
+          closed_side?: string | null
+          created_at?: string
+          event_id?: string | null
+          help_offer_id?: string | null
+          id?: string
+          kind?: string
+          last_message_at?: string | null
+          student_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_help_offer_id_fkey"
+            columns: ["help_offer_id"]
+            isOneToOne: false
+            referencedRelation: "help_offers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           building_id: string
@@ -329,6 +439,7 @@ export type Database = {
       food_rescues: {
         Row: {
           building_id: string
+          closed_at: string | null
           created_at: string
           created_by: string | null
           dietary: string[]
@@ -345,6 +456,7 @@ export type Database = {
         }
         Insert: {
           building_id: string
+          closed_at?: string | null
           created_at?: string
           created_by?: string | null
           dietary?: string[]
@@ -361,6 +473,7 @@ export type Database = {
         }
         Update: {
           building_id?: string
+          closed_at?: string | null
           created_at?: string
           created_by?: string | null
           dietary?: string[]
@@ -485,6 +598,38 @@ export type Database = {
             columns: ["building_id"]
             isOneToOne: false
             referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          body: string
+          conversation_id: string
+          created_at: string
+          id: string
+          sender_id: string
+        }
+        Insert: {
+          body: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          sender_id: string
+        }
+        Update: {
+          body?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
             referencedColumns: ["id"]
           },
         ]
@@ -619,6 +764,51 @@ export type Database = {
           },
         ]
       }
+      safety_alerts: {
+        Row: {
+          category: string
+          cleared_at: string | null
+          created_at: string
+          details: string | null
+          expires_at: string
+          id: string
+          lat: number
+          lng: number
+          occurred_at: string
+          posted_by: string | null
+          radius_m: number
+          title: string
+        }
+        Insert: {
+          category: string
+          cleared_at?: string | null
+          created_at?: string
+          details?: string | null
+          expires_at: string
+          id?: string
+          lat: number
+          lng: number
+          occurred_at?: string
+          posted_by?: string | null
+          radius_m: number
+          title: string
+        }
+        Update: {
+          category?: string
+          cleared_at?: string | null
+          created_at?: string
+          details?: string | null
+          expires_at?: string
+          id?: string
+          lat?: number
+          lng?: number
+          occurred_at?: string
+          posted_by?: string | null
+          radius_m?: number
+          title?: string
+        }
+        Relationships: []
+      }
       safety_notices: {
         Row: {
           area: string
@@ -678,6 +868,15 @@ export type Database = {
     }
     Functions: {
       can_manage_event: { Args: { p_event_id: string }; Returns: boolean }
+      can_run_rescue: {
+        Args: { p_rescue: Database["public"]["Tables"]["food_rescues"]["Row"] }
+        Returns: boolean
+      }
+      can_staff_event: { Args: { p_event_id: string }; Returns: boolean }
+      cancel_rescue_holds: {
+        Args: { p_food_name: string; p_reason: string; p_rescue_id: string }
+        Returns: number
+      }
       cancel_rsvp: { Args: { p_event_id: string }; Returns: boolean }
       check_in: {
         Args: { p_code: string }
@@ -709,6 +908,14 @@ export type Database = {
           reason: string
         }[]
       }
+      close_rescue: {
+        Args: { p_rescue_id: string }
+        Returns: {
+          cancelled: number
+          ok: boolean
+          reason: string
+        }[]
+      }
       club_audience_majors: {
         Args: { p_club_id: string }
         Returns: {
@@ -716,6 +923,7 @@ export type Database = {
           major: string
         }[]
       }
+      club_level: { Args: { p_club_id: string }; Returns: string }
       club_roster: {
         Args: { p_club_id: string }
         Returns: {
@@ -732,6 +940,20 @@ export type Database = {
           ok: boolean
           reason: string
         }[]
+      }
+      conversation_messages: {
+        Args: { p_conversation_id: string }
+        Returns: {
+          body: string
+          created_at: string
+          message_id: string
+          mine: boolean
+          sender_name: string
+        }[]
+      }
+      conversation_side: {
+        Args: { p_conversation_id: string }
+        Returns: string
       }
       create_club: {
         Args: { p_name: string }
@@ -776,6 +998,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      event_announcements: {
+        Args: { p_event_id: string }
+        Returns: {
+          body: string
+          conversation_id: string
+          created_at: string
+          message_id: string
+        }[]
+      }
       event_guests: {
         Args: { p_event_id: string }
         Returns: {
@@ -784,6 +1015,15 @@ export type Database = {
           guest_name: string
           rsvp_id: string
           sfsu_verified: boolean
+        }[]
+      }
+      event_messaging: {
+        Args: { p_event_id: string }
+        Returns: {
+          audience: number
+          has_host: boolean
+          is_team: boolean
+          registered: boolean
         }[]
       }
       faculty_event_attendance: {
@@ -828,7 +1068,61 @@ export type Database = {
           sfsu_verified: boolean
         }[]
       }
+      host_food_events: {
+        Args: never
+        Returns: {
+          building_id: string
+          checked_in_count: number
+          club_id: string | null
+          club_name: string
+          cost: number | null
+          created_at: string
+          created_by: string | null
+          description: string
+          ends_at: string
+          flyer_url: string | null
+          food_items: string[]
+          has_food: boolean
+          id: string
+          room: string | null
+          rsvp_count: number
+          source: string
+          starts_at: string
+          tags: string[]
+          title: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "events"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      host_food_posts: {
+        Args: never
+        Returns: {
+          building_id: string
+          closed_at: string
+          created_at: string
+          created_by: string
+          dietary: string[]
+          event_id: string
+          event_title: string
+          held: number
+          id: string
+          items: string
+          max_per_person: number
+          photo_url: string
+          picked_up: number
+          portions: number
+          portions_left: number
+          room: string
+          safe_until: string
+          status: string
+        }[]
+      }
       is_club_member: { Args: { p_club_id: string }; Returns: boolean }
+      is_club_organizer: { Args: { p_club_id: string }; Returns: boolean }
       join_club: {
         Args: { p_code: string }
         Returns: {
@@ -844,8 +1138,52 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      mark_conversation_read: {
+        Args: { p_conversation_id: string }
+        Returns: undefined
+      }
+      my_conversations: {
+        Args: { p_conversation_id?: string }
+        Returns: {
+          can_reopen: boolean
+          closed: boolean
+          conversation_id: string
+          counterpart: string
+          created_at: string
+          event_id: string
+          help_request_id: string
+          kind: string
+          last_at: string
+          last_body: string
+          last_mine: boolean
+          side: string
+          title: string
+          unread: boolean
+        }[]
+      }
       my_role: { Args: never; Returns: string }
+      open_event_conversation: { Args: { p_event_id: string }; Returns: string }
+      open_help_conversation: { Args: { p_offer_id: string }; Returns: string }
       release_expired_claims: { Args: never; Returns: number }
+      remove_club_member: {
+        Args: { p_club_id: string; p_uid: string }
+        Returns: undefined
+      }
+      remove_rescue: {
+        Args: { p_rescue_id: string }
+        Returns: {
+          cancelled: number
+          ok: boolean
+          reason: string
+        }[]
+      }
+      reopen_rescue: {
+        Args: { p_rescue_id: string }
+        Returns: {
+          ok: boolean
+          reason: string
+        }[]
+      }
       rescue_claims: {
         Args: { p_rescue_id: string }
         Returns: {
@@ -872,6 +1210,46 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      send_announcement: {
+        Args: { p_body: string; p_event_id: string }
+        Returns: {
+          body: string
+          conversation_id: string
+          created_at: string
+          id: string
+          sender_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "messages"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      send_message: {
+        Args: { p_body: string; p_conversation_id: string }
+        Returns: {
+          body: string
+          conversation_id: string
+          created_at: string
+          id: string
+          sender_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "messages"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_club_member_level: {
+        Args: { p_club_id: string; p_role: string; p_uid: string }
+        Returns: undefined
+      }
+      set_conversation_closed: {
+        Args: { p_closed: boolean; p_conversation_id: string }
+        Returns: boolean
       }
       set_help_offer_status: {
         Args: { p_offer_id: string; p_status: string }
