@@ -120,7 +120,9 @@ export function Buildings3D({ enabled, color }: { enabled: boolean; color: strin
       return;
     }
 
-    const style = map.getStyle();
+    // Between two looks the map has no style for a moment: wait for the next load.
+    const style = map.getStyle() as ReturnType<typeof map.getStyle> | undefined;
+    if (!style?.layers) return;
     // Some styles (Streets) ship their own 3D buildings. Hide those so ours match the look.
     const own = style.layers.filter(
       (layer) => layer.type === "fill-extrusion" && layer.id !== LAYER_ID,
