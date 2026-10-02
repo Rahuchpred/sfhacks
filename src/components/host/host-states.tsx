@@ -33,7 +33,7 @@ function Message({
   );
 }
 
-// Renders children only for the event's host. Every other case gets one plain screen.
+// Renders children only for the event's organizers. Every other case gets one plain screen.
 export function HostGate({
   status,
   error,
@@ -63,7 +63,7 @@ export function HostGate({
       <Message
         icon={Lock}
         title="This is not your event"
-        body="Only the person who posted an event can manage it or check guests in."
+        body="Only its organizers can manage it or check guests in."
       />
     );
   }

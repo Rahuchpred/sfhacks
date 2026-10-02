@@ -1,13 +1,16 @@
 "use client";
 
+// Mobbin reference (web): Sweatpals, event RSVPs table with a check-in column per attendee.
+
 import { useEffect, useState } from "react";
-import { Search, TriangleAlert, Users } from "lucide-react";
+import { BadgeCheck, Loader2, Search, TriangleAlert, Users } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { selectClass } from "@/components/post/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { listGuests } from "@/lib/db";
+import { checkInGuest, listGuests } from "@/lib/db";
 import type { Guest } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { formatClock, formatStamp } from "./host-utils";
@@ -43,8 +46,21 @@ function formatRelative(iso: string, now: number): string {
   return relativeFormat.format(Math.round(days / 365), "year");
 }
 
-function GuestRow({ guest, now }: { guest: Guest; now: number }) {
-  const initial = guest.name.trim().charAt(0).toUpperCase() || "?";
+function GuestRow({
+  guest,
+  now,
+  pending,
+  disabled,
+  onCheckIn,
+}: {
+  guest: Guest;
+  now: number;
+  pending: boolean;
+  disabled: boolean;
+  onCheckIn: () => void;
+}) {
+  const name = guest.name.trim() || "Guest";
+  const initial = name.charAt(0).toUpperCase();
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5">
       <div className="flex min-w-0 basis-full items-center gap-2.5 sm:flex-1 sm:basis-0">
@@ -54,17 +70,15 @@ function GuestRow({ guest, now }: { guest: Guest; now: number }) {
         >
           {initial}
         </span>
-        <p className="min-w-0 truncate text-sm font-medium">{guest.name}</p>
-        {guest.sfsuVerified && <Badge variant="secondary">Verified SFSU</Badge>}
-      </div>
-      <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 pl-9.5 sm:pl-0">
-        {guest.checkedInAt ? (
-          <Badge className="tabular-nums">Checked in {formatClock(guest.checkedInAt)}</Badge>
-        ) : (
-          <Badge variant="outline" className="text-muted-foreground">
-            Not yet
+        <p className="min-w-0 truncate text-sm font-medium">{name}</p>
+        {guest.sfsuVerified && (
+          <Badge variant="secondary" className="shrink-0">
+            <BadgeCheck aria-hidden="true" className="text-primary" />
+            Verified SFSU
           </Badge>
         )}
+      </div>
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1 pl-9.5 sm:flex-none sm:pl-0">
         <time
           dateTime={guest.createdAt}
           title={`Registered ${formatStamp(guest.createdAt)}`}
@@ -72,6 +86,22 @@ function GuestRow({ guest, now }: { guest: Guest; now: number }) {
         >
           {formatRelative(guest.createdAt, now)}
         </time>
+        {guest.checkedInAt ? (
+          <Badge className="ml-auto tabular-nums">Checked in {formatClock(guest.checkedInAt)}</Badge>
+        ) : (
+          <Button
+            size="lg"
+            className="ml-auto h-9 px-3"
+            disabled={disabled}
+            aria-label={`Check in ${name}`}
+            onClick={onCheckIn}
+          >
+            {pending && (
+              <Loader2 aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
+            )}
+            Check in
+          </Button>
+        )}
       </div>
     </li>
   );
@@ -81,16 +111,21 @@ export function GuestList({
   eventId,
   version,
   now,
+  onCheckedIn,
 }: {
   eventId: string;
   version: number;
   now: number;
+  onCheckedIn?: () => void; // lets the page refresh its counters right away
 }) {
   const [state, setState] = useState<State>({ guests: null, error: null });
   const [attempt, setAttempt] = useState(0);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("newest");
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  // Check-ins made here, shown at once without waiting for the refetch.
+  const [done, setDone] = useState<Record<string, string>>({});
 
   // Refetches when the event's live counters change. The cleanup flag drops
   // replies that arrive after a newer request or after unmount.
@@ -109,6 +144,33 @@ export function GuestList({
       cancelled = true;
     };
   }, [eventId, version, attempt]);
+
+  // For a student with no ticket to show. The same call the door list makes.
+  async function checkInRow(guest: Guest) {
+    if (pendingId) return;
+    const name = guest.name.trim() || "Guest";
+    setPendingId(guest.rsvpId);
+    try {
+      const result = await checkInGuest(guest.rsvpId);
+      if (result.ok || result.reason === "already_checked_in") {
+        const at = result.checkedInAt ?? new Date().toISOString();
+        setDone((current) => ({ ...current, [guest.rsvpId]: at }));
+        if (result.ok) toast.success(`${name} checked in`);
+        else toast.info(`${name} was already checked in`);
+        onCheckedIn?.();
+      } else {
+        toast.error(
+          result.reason === "not_host"
+            ? "Only this event's organizers can check guests in."
+            : "That registration no longer exists.",
+        );
+      }
+    } catch {
+      toast.error("Could not check in. Check your connection and try again.");
+    } finally {
+      setPendingId(null);
+    }
+  }
 
   const retry = () => {
     setState((current) => ({ guests: current.guests, error: null }));
@@ -174,7 +236,10 @@ export function GuestList({
     );
   }
 
-  const checkedIn = guests.filter((guest) => guest.checkedInAt).length;
+  const rows = guests.map((guest) =>
+    !guest.checkedInAt && done[guest.rsvpId] ? { ...guest, checkedInAt: done[guest.rsvpId] } : guest,
+  );
+  const checkedIn = rows.filter((guest) => guest.checkedInAt).length;
   const options: { value: Filter; label: string; count: number }[] = [
     { value: "all", label: "All guests", count: guests.length },
     { value: "in", label: "Checked in", count: checkedIn },
@@ -182,7 +247,7 @@ export function GuestList({
   ];
 
   const needle = query.trim().toLowerCase();
-  const visible = guests
+  const visible = rows
     .filter((guest) => {
       if (filter === "in" && !guest.checkedInAt) return false;
       if (filter === "out" && guest.checkedInAt) return false;
@@ -267,7 +332,14 @@ export function GuestList({
       {visible.length > 0 ? (
         <ul className={LIST}>
           {visible.map((guest) => (
-            <GuestRow key={guest.rsvpId} guest={guest} now={now} />
+            <GuestRow
+              key={guest.rsvpId}
+              guest={guest}
+              now={now}
+              pending={pendingId === guest.rsvpId}
+              disabled={pendingId !== null}
+              onCheckIn={() => checkInRow(guest)}
+            />
           ))}
         </ul>
       ) : (

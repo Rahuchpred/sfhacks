@@ -1,5 +1,7 @@
 "use client";
 
+// Mobbin reference (web): Sweatpals, event RSVPs table with a check-in column per attendee.
+
 import { useCallback, useId, useRef, useState } from "react";
 import Link from "next/link";
 import {
@@ -14,8 +16,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { checkIn } from "@/lib/db";
-import type { CampusEvent, CheckInResult } from "@/lib/types";
+import { checkIn, checkInGuest } from "@/lib/db";
+import type { CampusEvent, CheckInResult, Guest } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { CheckInList } from "./check-in-list";
 import { HostGate } from "./host-states";
@@ -90,7 +92,7 @@ function ResultBanner({ banner }: { banner: Banner }) {
       {banner.kind === "idle" && (
         <>
           <ScanLine aria-hidden className="size-6 shrink-0" />
-          <p className="text-sm text-pretty">Scan a ticket or type its code. The result shows here.</p>
+          <p className="text-sm text-pretty">Scan a ticket, type its code, or check in from the list.</p>
         </>
       )}
       {banner.kind === "checking" && (
@@ -134,7 +136,7 @@ function ResultBanner({ banner }: { banner: Banner }) {
         <>
           <XCircle aria-hidden className="size-10 shrink-0 text-destructive" />
           <p className="min-w-0 text-lg leading-tight font-semibold text-pretty">
-            That ticket is for an event you do not host.
+            That ticket is for an event you do not manage.
           </p>
         </>
       )}
@@ -226,45 +228,40 @@ function CheckInBody({ id, event, version }: { id: string; event: CampusEvent; v
 
   const busyRef = useRef(false);
   const lastScan = useRef<{ code: string; seenAt: number }>({ code: "", seenAt: 0 });
+  const inputRef = useRef<HTMLInputElement>(null);
   const inputId = useId();
   const errorId = useId();
 
   const shownCount = Math.max(event.checkedInCount, floor);
 
-  const submit = useCallback(
-    async (rawCode: string, source: "scan" | "typed") => {
-      if (busyRef.current) return;
-      const code = normalizeCode(rawCode);
-
-      // A QR code that is not a ticket (a link, a poster) never leaves the phone.
-      if (source === "scan" && code.length !== CODE_LENGTH) {
-        setBanner({ kind: "not_found" });
-        vibrate([60, 60, 60]);
-        return;
-      }
-
+  // One path for a scan, a typed code and a press in the list, so all three
+  // report in the same banner. Returns null when busy or when the request failed.
+  const run = useCallback(
+    async (request: () => Promise<CheckInResult>): Promise<CheckInResult | null> => {
+      if (busyRef.current) return null;
       // Taken before the request: if the live count lands first, max() keeps it from counting twice.
       const countBefore = shownCount;
       busyRef.current = true;
       setBusy(true);
       setBanner({ kind: "checking" });
+      // Whatever the organizer typed earlier, a new attempt starts with a clean field message.
+      setTypedError(null);
       try {
-        const result = await checkIn(code);
+        const result = await request();
         const next = toBanner(result, id);
         setBanner(next);
         if (next.kind === "ok") {
           setCheckIns((current) => current + 1);
           if (!next.otherEvent) setFloor((current) => Math.max(current, countBefore + 1));
-          if (source === "typed") setTyped("");
           vibrate(80);
         } else {
           vibrate([60, 60, 60]);
         }
+        return result;
       } catch {
         setBanner({ kind: "error" });
         vibrate([60, 60, 60]);
-        // Let the host hold the same ticket up again right away.
-        if (source === "scan") lastScan.current = { code: "", seenAt: 0 };
+        return null;
       } finally {
         busyRef.current = false;
         setBusy(false);
@@ -273,7 +270,9 @@ function CheckInBody({ id, event, version }: { id: string; event: CampusEvent; v
     [id, shownCount],
   );
 
-  // The scanner reports a code again and again while it stays in frame.
+  // The scanner reports a code again and again while it stays in frame. Each code is
+  // sent once: it can be sent again only after it has been out of frame for SAME_CODE_MS.
+  // Nothing here reads or validates the typed field.
   const handleScan = useCallback(
     (raw: string) => {
       const code = normalizeCode(raw);
@@ -286,22 +285,49 @@ function CheckInBody({ id, event, version }: { id: string; event: CampusEvent; v
       }
       if (busyRef.current) return;
       lastScan.current = { code, seenAt: now };
-      void submit(code, "scan");
+
+      // A QR code that is not a ticket (a link, a poster) never leaves the phone.
+      if (code.length !== CODE_LENGTH) {
+        setTypedError(null);
+        setBanner({ kind: "not_found" });
+        vibrate([60, 60, 60]);
+        return;
+      }
+      void run(() => checkIn(code));
     },
-    [submit],
+    [run],
   );
 
-  function handleTyped(formEvent: React.FormEvent<HTMLFormElement>) {
+  // The only place the typed field is validated: when the organizer submits it.
+  async function handleTyped(formEvent: React.FormEvent<HTMLFormElement>) {
     formEvent.preventDefault();
     if (busy) return;
     const code = normalizeCode(typed);
+    if (code.length === 0) {
+      // Nothing typed: not a mistake, so no message. Point at the field instead.
+      inputRef.current?.focus();
+      return;
+    }
     if (code.length !== CODE_LENGTH) {
       setTypedError("Enter the 8-character code on the ticket.");
       return;
     }
-    setTypedError(null);
-    void submit(code, "typed");
+    const result = await run(() => checkIn(code));
+    if (result?.ok) setTyped("");
   }
+
+  // From the list, for a student with no ticket to show. Resolves to the check-in time, or null.
+  const handleGuest = useCallback(
+    async (guest: Guest): Promise<string | null> => {
+      const result = await run(() => checkInGuest(guest.rsvpId));
+      if (!result) return null;
+      if (result.ok || result.reason === "already_checked_in") {
+        return result.checkedInAt ?? new Date().toISOString();
+      }
+      return null;
+    },
+    [run],
+  );
 
   const eventTime = formatEventTime(event);
 
@@ -327,7 +353,12 @@ function CheckInBody({ id, event, version }: { id: string; event: CampusEvent; v
       {view === "scan" ? (
         <Scanner onCode={handleScan} />
       ) : (
-        <CheckInList eventId={id} version={version + checkIns} />
+        <CheckInList
+          eventId={id}
+          version={version + checkIns}
+          busy={busy}
+          onCheckIn={handleGuest}
+        />
       )}
 
       <LiveBar checkedIn={shownCount} going={event.rsvpCount} />
@@ -336,6 +367,7 @@ function CheckInBody({ id, event, version }: { id: string; event: CampusEvent; v
         <Label htmlFor={inputId}>Type the ticket code</Label>
         <div className="flex gap-2">
           <Input
+            ref={inputRef}
             id={inputId}
             name="code"
             type="text"
@@ -361,6 +393,9 @@ function CheckInBody({ id, event, version }: { id: string; event: CampusEvent; v
             disabled={busy}
             className="h-12 shrink-0 touch-manipulation px-5 text-base"
           >
+            {busy && (
+              <LoaderCircle aria-hidden className="size-5 animate-spin motion-reduce:animate-none" />
+            )}
             Check in
           </Button>
         </div>

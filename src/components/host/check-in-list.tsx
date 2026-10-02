@@ -1,7 +1,9 @@
 "use client";
 
+// Mobbin reference (web): Square, customer list with a search field and one action per row.
+
 import { useEffect, useId, useState } from "react";
-import { Search, TriangleAlert, Users } from "lucide-react";
+import { BadgeCheck, LoaderCircle, Search, TriangleAlert, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,35 +25,78 @@ function byDoorOrder(a: Guest, b: Guest): number {
   return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
 }
 
-function GuestRow({ guest }: { guest: Guest }) {
+function GuestRow({
+  guest,
+  pending,
+  disabled,
+  onCheckIn,
+}: {
+  guest: Guest;
+  pending: boolean;
+  disabled: boolean;
+  onCheckIn: () => void;
+}) {
   const name = guest.name.trim() || "Guest";
   const clock = guest.checkedInAt ? formatClock(guest.checkedInAt) : "";
 
   return (
-    <li className="flex min-h-14 items-center gap-3 px-3 py-2">
+    <li className="flex min-h-16 items-center gap-3 px-3 py-2">
       <span
         aria-hidden
         className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-secondary-foreground uppercase"
       >
         {Array.from(name)[0]}
       </span>
-      <p className="min-w-0 flex-1 truncate text-base font-medium">{name}</p>
+      <p className="flex min-w-0 flex-1 items-center gap-1.5 text-base font-medium">
+        <span className="min-w-0 truncate">{name}</span>
+        {guest.sfsuVerified && (
+          <>
+            <BadgeCheck aria-hidden className="size-4 shrink-0 text-primary" />
+            <span className="sr-only">Verified SFSU</span>
+          </>
+        )}
+      </p>
       {guest.checkedInAt ? (
-        <Badge className="h-7 shrink-0 px-2.5 text-sm tabular-nums">{clock ? `Checked in ${clock}` : "Checked in"}</Badge>
-      ) : (
-        <Badge variant="outline" className="h-7 shrink-0 px-2.5 text-sm text-muted-foreground">
-          Not yet
+        <Badge className="h-7 shrink-0 px-2.5 text-sm tabular-nums">
+          {clock ? `In ${clock}` : "Checked in"}
         </Badge>
+      ) : (
+        <Button
+          type="button"
+          disabled={disabled}
+          aria-label={`Check in ${name}`}
+          onClick={onCheckIn}
+          className="h-11 shrink-0 touch-manipulation px-4 text-base"
+        >
+          {pending && (
+            <LoaderCircle aria-hidden className="size-5 animate-spin motion-reduce:animate-none" />
+          )}
+          Check in
+        </Button>
       )}
     </li>
   );
 }
 
-// Read-only: a guest has no ticket code here, so the host checks people in by scan or typed code.
-export function CheckInList({ eventId, version }: { eventId: string; version: number }) {
+// The door list. A press on "Check in" covers a student with no ticket to show.
+// The parent runs the check-in, so the result lands in the same banner as a scan.
+export function CheckInList({
+  eventId,
+  version,
+  busy,
+  onCheckIn,
+}: {
+  eventId: string;
+  version: number;
+  busy: boolean; // a scan or typed code is in flight
+  onCheckIn: (guest: Guest) => Promise<string | null>; // the check-in time, or null when it failed
+}) {
   const [state, setState] = useState<State>({ guests: null, error: null });
   const [attempt, setAttempt] = useState(0);
   const [query, setQuery] = useState("");
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  // Check-ins made here, shown at once without waiting for the refetch.
+  const [done, setDone] = useState<Record<string, string>>({});
   const searchId = useId();
 
   // Refetches on every live change. The cleanup flag drops replies that
@@ -71,6 +116,17 @@ export function CheckInList({ eventId, version }: { eventId: string; version: nu
       cancelled = true;
     };
   }, [eventId, version, attempt]);
+
+  async function checkInRow(guest: Guest) {
+    if (pendingId || busy) return;
+    setPendingId(guest.rsvpId);
+    try {
+      const at = await onCheckIn(guest);
+      if (at) setDone((current) => ({ ...current, [guest.rsvpId]: at }));
+    } finally {
+      setPendingId(null);
+    }
+  }
 
   const retry = () => {
     setState((current) => ({ guests: current.guests, error: null }));
@@ -130,6 +186,9 @@ export function CheckInList({ eventId, version }: { eventId: string; version: nu
 
   const needle = query.trim().toLowerCase();
   const visible = guests
+    .map((guest) =>
+      !guest.checkedInAt && done[guest.rsvpId] ? { ...guest, checkedInAt: done[guest.rsvpId] } : guest,
+    )
     .filter((guest) => !needle || guest.name.toLowerCase().includes(needle))
     .sort(byDoorOrder);
 
@@ -169,11 +228,6 @@ export function CheckInList({ eventId, version }: { eventId: string; version: nu
         />
       </div>
 
-      <p className="text-sm text-pretty text-muted-foreground">
-        To check someone in without a phone, ask for the 8-character code on their ticket and type
-        it below.
-      </p>
-
       <p role="status" className="sr-only">
         {visible.length} of {guests.length} {guests.length === 1 ? "guest" : "guests"} shown
       </p>
@@ -181,7 +235,13 @@ export function CheckInList({ eventId, version }: { eventId: string; version: nu
       {visible.length > 0 ? (
         <ul className="divide-y rounded-2xl border">
           {visible.map((guest) => (
-            <GuestRow key={guest.rsvpId} guest={guest} />
+            <GuestRow
+              key={guest.rsvpId}
+              guest={guest}
+              pending={pendingId === guest.rsvpId}
+              disabled={busy || pendingId !== null}
+              onCheckIn={() => checkInRow(guest)}
+            />
           ))}
         </ul>
       ) : (
