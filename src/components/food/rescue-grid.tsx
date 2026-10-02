@@ -109,14 +109,27 @@ export function RescueGrid() {
 
   // Checked against the shared clock, so a rescue leaves the moment it runs
   // out or its time passes. A rescue the student holds stays until its time.
-  const visible = rescues.filter(
+  const open = rescues.filter(
     (rescue) =>
       rescue.status === "open" &&
       Date.parse(rescue.safeUntil) > now &&
       (rescue.portionsLeft > 0 || holdsByRescue.has(rescue.id)),
   );
+  // The last claim marks a post "gone", which drops it from the live list. The
+  // student holding one of those portions still sees it, first in the grid.
+  const openIds = new Set(open.map((rescue) => rescue.id));
+  const heldOnly = [...holdsByRescue.keys()]
+    .filter((id) => !openIds.has(id))
+    .map((id) => rescueById.get(id))
+    .filter(
+      (rescue): rescue is FoodRescue =>
+        rescue !== undefined && Date.parse(rescue.safeUntil) > now,
+    )
+    // Off the live list means nothing is left to claim, whatever the last copy said.
+    .map((rescue) => ({ ...rescue, portionsLeft: 0 }));
+  const visible = [...heldOnly, ...open];
   const openCount = visible.filter((rescue) => rescue.portionsLeft > 0).length;
-  const claimable = new Map(visible.map((rescue) => [rescue.id, rescue]));
+  const claimable = new Map(open.map((rescue) => [rescue.id, rescue]));
 
   const rows: PickupRow[] = claims.pickups
     .filter(
@@ -224,7 +237,7 @@ export function RescueGrid() {
 
   return (
     <div className="space-y-6">
-      {(rows.length > 0 || claims.error) && (
+      {(rows.length > 0 || claims.notices.length > 0 || claims.error) && (
         <section aria-labelledby="your-pickups" className="space-y-3">
           <h2 id="your-pickups" className="font-heading text-lg font-medium">
             Your pickups
@@ -241,8 +254,15 @@ export function RescueGrid() {
               <RetryButton onRetry={claims.refresh} />
             </p>
           )}
-          {rows.length > 0 && (
-            <Pickups rows={rows} now={now} onClaim={claim} onDismiss={claims.dismiss} />
+          {(rows.length > 0 || claims.notices.length > 0) && (
+            <Pickups
+              rows={rows}
+              notices={claims.notices}
+              now={now}
+              onClaim={claim}
+              onDismiss={claims.dismiss}
+              onDismissNotice={claims.dismissNotice}
+            />
           )}
         </section>
       )}

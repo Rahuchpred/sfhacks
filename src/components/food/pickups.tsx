@@ -5,7 +5,7 @@
 // GetYourGuide "Deals expire in" timer.
 
 import { useRef, useState } from "react";
-import { Check, Clock, Loader2, MapPin, X } from "lucide-react";
+import { Ban, Check, Clock, Loader2, MapPin, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import type { ClaimNotice } from "@/lib/db-food";
 import type { FoodRescue } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { formatClock, HoldTimer } from "./countdown";
@@ -115,60 +116,140 @@ function ExpiredTile({
   );
 }
 
-export function Pickups({
-  rows,
+// A hold the club cancelled by closing or removing its post.
+function CancelledTile({
+  notice,
+  onDismiss,
+}: {
+  notice: ClaimNotice;
+  onDismiss: (id: string) => Promise<void>;
+}) {
+  const busy = useRef(false);
+
+  async function dismiss() {
+    if (busy.current) return;
+    busy.current = true;
+    try {
+      await onDismiss(notice.id);
+    } catch {
+      busy.current = false;
+      toast.error("Could not dismiss. Check your connection and try again.");
+    }
+  }
+
+  return (
+    <li className={cn(TILE, "bg-card ring-1 ring-foreground/10")}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-destructive/10">
+            <Ban aria-hidden="true" className="size-4 text-destructive" />
+          </span>
+          <div className="min-w-0">
+            <p className="font-medium text-destructive">No longer available</p>
+            <p className="truncate text-muted-foreground">{notice.foodName}</p>
+          </div>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="-mt-1 -mr-1"
+          onClick={dismiss}
+        >
+          <X aria-hidden="true" />
+          <span className="sr-only">Dismiss</span>
+        </Button>
+      </div>
+      <p className="text-pretty text-muted-foreground">
+        {`${notice.reason === "removed" ? "The club removed this post" : "The club says the food is gone"}, so your ${
+          notice.portions > 1 ? `${notice.portions} holds were` : "hold was"
+        } cancelled.`}
+      </p>
+    </li>
+  );
+}
+
+function PickupTile({
+  row,
   now,
   onClaim,
   onDismiss,
 }: {
-  rows: PickupRow[];
+  row: PickupRow;
   now: number;
   onClaim: (rescue: FoodRescue) => Promise<ClaimOutcome>;
   onDismiss: (ids: string[]) => void;
 }) {
+  const { pickup, rescue, place } = row;
+  const state = pickupState(pickup, now);
+
+  if (state === "expired") {
+    return <ExpiredTile row={row} onClaim={onClaim} onDismiss={onDismiss} />;
+  }
+
+  if (state === "picked_up") {
+    return (
+      <li className={cn(TILE, "bg-card ring-1 ring-foreground/10")}>
+        <div className="flex items-center gap-2.5">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent/25">
+            <Check aria-hidden="true" className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <p className="font-medium">
+              Picked up {pickup.pickedUpAt ? formatClock(pickup.pickedUpAt) : ""}
+            </p>
+            <p className="truncate text-muted-foreground">{rescue?.items ?? "Free food"}</p>
+          </div>
+        </div>
+      </li>
+    );
+  }
+
+  return (
+    <li className={cn(TILE, "bg-accent/15 ring-1 ring-accent/60")}>
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="min-w-0 truncate font-medium">{rescue?.items ?? "Free food"}</p>
+        <p className="flex shrink-0 items-center gap-1 font-medium">
+          <Clock aria-hidden="true" className="size-3.5" />
+          <HoldTimer until={pickup.expiresAt} now={now} />
+        </p>
+      </div>
+      <PickupCode code={pickup.code} />
+      <p className="font-medium">Show this code to the organizer</p>
+      <Place place={place} />
+    </li>
+  );
+}
+
+export function Pickups({
+  rows,
+  notices,
+  now,
+  onClaim,
+  onDismiss,
+  onDismissNotice,
+}: {
+  rows: PickupRow[];
+  notices: ClaimNotice[];
+  now: number;
+  onClaim: (rescue: FoodRescue) => Promise<ClaimOutcome>;
+  onDismiss: (ids: string[]) => void;
+  onDismissNotice: (id: string) => Promise<void>;
+}) {
+  // Live holds first, then food the club took back, then expired holds and pickups.
+  const holding = rows.filter((row) => pickupState(row.pickup, now) === "holding");
+  const rest = rows.filter((row) => pickupState(row.pickup, now) !== "holding");
+  const tile = (row: PickupRow) => (
+    <PickupTile key={row.pickup.id} row={row} now={now} onClaim={onClaim} onDismiss={onDismiss} />
+  );
+
   return (
     <ul className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {rows.map((row) => {
-        const { pickup, rescue, place } = row;
-        const state = pickupState(pickup, now);
-
-        if (state === "expired") {
-          return <ExpiredTile key={pickup.id} row={row} onClaim={onClaim} onDismiss={onDismiss} />;
-        }
-
-        if (state === "picked_up") {
-          return (
-            <li key={pickup.id} className={cn(TILE, "bg-card ring-1 ring-foreground/10")}>
-              <div className="flex items-center gap-2.5">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent/25">
-                  <Check aria-hidden="true" className="size-4" />
-                </span>
-                <div className="min-w-0">
-                  <p className="font-medium">
-                    Picked up {pickup.pickedUpAt ? formatClock(pickup.pickedUpAt) : ""}
-                  </p>
-                  <p className="truncate text-muted-foreground">{rescue?.items ?? "Free food"}</p>
-                </div>
-              </div>
-            </li>
-          );
-        }
-
-        return (
-          <li key={pickup.id} className={cn(TILE, "bg-accent/15 ring-1 ring-accent/60")}>
-            <div className="flex items-baseline justify-between gap-3">
-              <p className="min-w-0 truncate font-medium">{rescue?.items ?? "Free food"}</p>
-              <p className="flex shrink-0 items-center gap-1 font-medium">
-                <Clock aria-hidden="true" className="size-3.5" />
-                <HoldTimer until={pickup.expiresAt} now={now} />
-              </p>
-            </div>
-            <PickupCode code={pickup.code} />
-            <p className="font-medium">Show this code to the organizer</p>
-            <Place place={place} />
-          </li>
-        );
-      })}
+      {holding.map(tile)}
+      {notices.map((notice) => (
+        <CancelledTile key={notice.id} notice={notice} onDismiss={onDismissNotice} />
+      ))}
+      {rest.map(tile)}
     </ul>
   );
 }

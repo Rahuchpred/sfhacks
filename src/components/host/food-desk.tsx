@@ -10,9 +10,11 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNow } from "@/components/food/countdown";
-import { listBuildings, listRescuesForEvent, releaseExpiredClaims } from "@/lib/db";
+import { listBuildings, releaseExpiredClaims } from "@/lib/db";
+import { listEventFoodPosts, type FoodPost } from "@/lib/db-food";
 import type { Building, CampusEvent, FoodRescue } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import type { FoodChange } from "./food-actions";
 import { FoodPickups } from "./food-pickups";
 import { FoodPostForm } from "./food-post-form";
 import { GOLD_BUTTON } from "./food-utils";
@@ -24,23 +26,31 @@ import { useHostEvent } from "./use-host-event";
 const POLL_MS = 15_000;
 
 type RescuesState =
-  | { status: "loading"; rescues: FoodRescue[] }
-  | { status: "ready"; rescues: FoodRescue[] }
-  | { status: "error"; rescues: FoodRescue[] };
+  | { status: "loading"; rescues: FoodPost[] }
+  | { status: "ready"; rescues: FoodPost[] }
+  | { status: "error"; rescues: FoodPost[] };
 
-async function fetchRescues(eventId: string): Promise<FoodRescue[]> {
+async function fetchRescues(eventId: string): Promise<FoodPost[]> {
   // Run-out holds go back on the list first, so "left" is right. Fine if it fails.
   await releaseExpiredClaims().catch(() => 0);
-  return listRescuesForEvent(eventId);
+  return listEventFoodPosts(eventId);
 }
 
-function FoodDeskBody({ event, version }: { event: CampusEvent; version: number }) {
+function FoodDeskBody({
+  event,
+  version,
+  startPosting,
+}: {
+  event: CampusEvent;
+  version: number;
+  startPosting: boolean;
+}) {
   const now = useNow(1000);
   const [buildings, setBuildings] = useState<Building[]>([]);
   // False until the building list has answered, so the place never reads "Campus" first.
   const [placeReady, setPlaceReady] = useState(false);
   const [state, setState] = useState<RescuesState>({ status: "loading", rescues: [] });
-  const [posting, setPosting] = useState(false);
+  const [posting, setPosting] = useState(startPosting);
   const [polls, setPolls] = useState(0);
   // Bumped by a confirmed pickup, which changes no rescue row and so sends no live update.
   const [confirms, setConfirms] = useState(0);
@@ -68,7 +78,7 @@ function FoodDeskBody({ event, version }: { event: CampusEvent; version: number 
     return () => window.clearInterval(id);
   }, []);
 
-  const apply = useCallback((load: Promise<FoodRescue[]>, isCancelled: () => boolean) => {
+  const apply = useCallback((load: Promise<FoodPost[]>, isCancelled: () => boolean) => {
     load
       .then((rescues) => {
         if (!isCancelled()) setState({ status: "ready", rescues });
@@ -100,22 +110,34 @@ function FoodDeskBody({ event, version }: { event: CampusEvent; version: number 
   function handlePublished(rescue: FoodRescue) {
     setPosting(false);
     // Show it right away. The live update brings the same row a moment later.
+    const post: FoodPost = { ...rescue, createdAt: new Date().toISOString(), closedAt: null };
     setState((current) => ({
       status: "ready",
-      rescues: [rescue, ...current.rescues.filter((item) => item.id !== rescue.id)],
+      rescues: [post, ...current.rescues.filter((item) => item.id !== rescue.id)],
     }));
     toast.success("Food posted", { description: "Students can hold a portion now." });
+  }
+
+  function handleChanged(post: FoodPost, change: FoodChange) {
+    // A removed post leaves at once. The refetch brings the new state of the rest.
+    if (change === "removed") {
+      setState((current) => ({
+        ...current,
+        rescues: current.rescues.filter((item) => item.id !== post.id),
+      }));
+    }
+    setConfirms((current) => current + 1);
   }
 
   return (
     <div className="flex flex-col gap-5">
       <header className="flex min-w-0 flex-col gap-1">
         <Link
-          href={`/host/${event.id}`}
+          href="/host/food"
           className="-ml-1 inline-flex min-h-10 w-fit touch-manipulation items-center gap-1.5 rounded-md px-1 text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <ArrowLeft aria-hidden className="size-4" />
-          Manage event
+          All food posts
         </Link>
         <div className="flex min-h-11 flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold tracking-tight text-balance">Leftover food</h1>
@@ -129,7 +151,14 @@ function FoodDeskBody({ event, version }: { event: CampusEvent; version: number 
             </Button>
           )}
         </div>
-        <p className="min-w-0 text-sm break-words text-muted-foreground">{event.title}</p>
+        <p className="min-w-0 text-sm break-words text-muted-foreground">
+          <Link
+            href={`/host/${event.id}`}
+            className="rounded-sm underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            {event.title}
+          </Link>
+        </p>
         {!posting && (
           <p className="flex items-start gap-1.5 text-sm text-muted-foreground">
             <MapPin aria-hidden className="mt-0.5 size-4 shrink-0" />
@@ -211,18 +240,19 @@ function FoodDeskBody({ event, version }: { event: CampusEvent; version: number 
           tick={tick}
           now={now}
           onConfirmed={() => setConfirms((current) => current + 1)}
+          onChanged={(change) => handleChanged(rescue, change)}
         />
       ))}
     </div>
   );
 }
 
-export function FoodDesk({ id }: { id: string }) {
+export function FoodDesk({ id, startPosting = false }: { id: string; startPosting?: boolean }) {
   const { status, event, error, version } = useHostEvent(id);
 
   return (
     <HostGate status={status} error={error}>
-      {event && <FoodDeskBody event={event} version={version} />}
+      {event && <FoodDeskBody event={event} version={version} startPosting={startPosting} />}
     </HostGate>
   );
 }
