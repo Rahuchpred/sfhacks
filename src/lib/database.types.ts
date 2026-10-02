@@ -101,6 +101,77 @@ export type Database = {
           },
         ]
       }
+      class_sections: {
+        Row: {
+          building_id: string | null
+          capacity: number
+          class_number: string | null
+          component: string
+          days: string[]
+          end_time: string
+          ends_on: string | null
+          enrolled: number
+          id: string
+          number: string
+          room: string | null
+          sample: boolean
+          section: string
+          start_time: string
+          starts_on: string | null
+          subject: string
+          term: string
+          title: string
+        }
+        Insert: {
+          building_id?: string | null
+          capacity?: number
+          class_number?: string | null
+          component?: string
+          days: string[]
+          end_time: string
+          ends_on?: string | null
+          enrolled?: number
+          id?: string
+          number: string
+          room?: string | null
+          sample?: boolean
+          section?: string
+          start_time: string
+          starts_on?: string | null
+          subject: string
+          term: string
+          title: string
+        }
+        Update: {
+          building_id?: string | null
+          capacity?: number
+          class_number?: string | null
+          component?: string
+          days?: string[]
+          end_time?: string
+          ends_on?: string | null
+          enrolled?: number
+          id?: string
+          number?: string
+          room?: string | null
+          sample?: boolean
+          section?: string
+          start_time?: string
+          starts_on?: string | null
+          subject?: string
+          term?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_sections_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_invites: {
         Row: {
           club_id: string
@@ -422,49 +493,96 @@ export type Database = {
         Row: {
           ai_summary: string | null
           bio: string
+          company: string
+          department: string
           email: string | null
           full_name: string
           github_url: string | null
           grad_year: number | null
           id: string
+          is_demo: boolean
           linkedin_url: string | null
           major: string
           recruiter_visible: boolean
           resume_url: string | null
+          role: string | null
           sfsu_verified: boolean
           updated_at: string
         }
         Insert: {
           ai_summary?: string | null
           bio?: string
+          company?: string
+          department?: string
           email?: string | null
           full_name?: string
           github_url?: string | null
           grad_year?: number | null
           id: string
+          is_demo?: boolean
           linkedin_url?: string | null
           major?: string
           recruiter_visible?: boolean
           resume_url?: string | null
+          role?: string | null
           sfsu_verified?: boolean
           updated_at?: string
         }
         Update: {
           ai_summary?: string | null
           bio?: string
+          company?: string
+          department?: string
           email?: string | null
           full_name?: string
           github_url?: string | null
           grad_year?: number | null
           id?: string
+          is_demo?: boolean
           linkedin_url?: string | null
           major?: string
           recruiter_visible?: boolean
           resume_url?: string | null
+          role?: string | null
           sfsu_verified?: boolean
           updated_at?: string
         }
         Relationships: []
+      }
+      rooms: {
+        Row: {
+          building_id: string
+          capacity: number
+          id: string
+          kind: string
+          room: string
+          sample: boolean
+        }
+        Insert: {
+          building_id: string
+          capacity: number
+          id?: string
+          kind?: string
+          room: string
+          sample?: boolean
+        }
+        Update: {
+          building_id?: string
+          capacity?: number
+          id?: string
+          kind?: string
+          room?: string
+          sample?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rooms_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       rsvps: {
         Row: {
@@ -591,6 +709,13 @@ export type Database = {
           reason: string
         }[]
       }
+      club_audience_majors: {
+        Args: { p_club_id: string }
+        Returns: {
+          attendees: number
+          major: string
+        }[]
+      }
       club_roster: {
         Args: { p_club_id: string }
         Returns: {
@@ -619,6 +744,34 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "clubs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      demo_set_role: {
+        Args: { p_role: string }
+        Returns: {
+          ai_summary: string | null
+          bio: string
+          company: string
+          department: string
+          email: string | null
+          full_name: string
+          github_url: string | null
+          grad_year: number | null
+          id: string
+          is_demo: boolean
+          linkedin_url: string | null
+          major: string
+          recruiter_visible: boolean
+          resume_url: string | null
+          role: string | null
+          sfsu_verified: boolean
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -679,6 +832,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      my_role: { Args: never; Returns: string }
       release_expired_claims: { Args: never; Returns: number }
       rescue_claims: {
         Args: { p_rescue_id: string }
@@ -710,6 +864,34 @@ export type Database = {
       set_help_offer_status: {
         Args: { p_offer_id: string; p_status: string }
         Returns: boolean
+      }
+      set_my_role: {
+        Args: { p_role: string }
+        Returns: {
+          ai_summary: string | null
+          bio: string
+          company: string
+          department: string
+          email: string | null
+          full_name: string
+          github_url: string | null
+          grad_year: number | null
+          id: string
+          is_demo: boolean
+          linkedin_url: string | null
+          major: string
+          recruiter_visible: boolean
+          resume_url: string | null
+          role: string | null
+          sfsu_verified: boolean
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       visible_attendance: {
         Args: never

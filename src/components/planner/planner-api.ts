@@ -10,7 +10,7 @@ import { mockCheck, mockPlanEvent } from "./planner-mock";
 
 // THE SWITCH. True answers from planner-mock.ts. Set it to false once
 // POST /api/ai/plan-event and POST /api/planner/check are merged.
-export const USE_MOCK = true;
+export const USE_MOCK = false;
 
 // Speech or typed idea to an understood idea, a forecast and up to three options. One AI call.
 export function planEvent(request: PlanEventRequest): Promise<PlanEventResponse> {
