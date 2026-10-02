@@ -58,3 +58,29 @@ export const hostInsightsSchema = z.object({
   insights: z.array(z.object({ title: z.string(), detail: z.string() })).min(1).max(6),
   nextEvent: z.string().catch(""),
 });
+
+export const structureHelpSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().catch(""),
+  timeNeeded: z.string().catch(""),
+  skills: z.array(z.string()).catch([]),
+  rewardType: z.string().nullable().catch(null),
+  rewardDetail: z.string().catch(""),
+  buildingId: z.string().nullable().catch(null),
+});
+
+export const safetyNoticesSchema = z.object({
+  notices: z
+    .array(
+      z.object({
+        title: z.string(),
+        category: z.string(),
+        occurredOn: z.string().nullable().catch(null),
+        area: z.string().catch(""),
+        buildingId: z.string().nullable().catch(null),
+        summary: z.string(),
+        sensitive: z.boolean().catch(true),
+      }),
+    )
+    .catch([]),
+});

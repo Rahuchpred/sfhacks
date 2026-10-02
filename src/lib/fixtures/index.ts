@@ -45,3 +45,15 @@ export const hostInsightsFixture = {
   insights: [{ title: "Turnout", detail: "About 6 in 10 registered students check in." }],
   nextEvent: "Plan food for 60% of registrations.",
 };
+
+export const structureHelpFixture = {
+  title: "Help recording research interviews",
+  description: "Set up a microphone and record four short interviews for a research project.",
+  timeNeeded: "About 3 hours, one afternoon",
+  skills: ["audio recording"],
+  rewardType: "reference letter",
+  rewardDetail: "A reference letter and credit in the published study.",
+  buildingId: "humanities",
+};
+
+export const safetyNoticesFixture = { notices: [] };

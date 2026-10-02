@@ -321,6 +321,103 @@ export type Database = {
           },
         ]
       }
+      help_offers: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          note: string
+          request_id: string
+          status: string
+          uid: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          note?: string
+          request_id: string
+          status?: string
+          uid: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          note?: string
+          request_id?: string
+          status?: string
+          uid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "help_offers_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "help_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      help_requests: {
+        Row: {
+          building_id: string | null
+          created_at: string
+          created_by: string
+          department: string
+          description: string
+          id: string
+          requester_name: string
+          reward_detail: string
+          reward_type: string
+          skills: string[]
+          spots: number
+          status: string
+          time_needed: string
+          title: string
+        }
+        Insert: {
+          building_id?: string | null
+          created_at?: string
+          created_by?: string
+          department?: string
+          description?: string
+          id?: string
+          requester_name?: string
+          reward_detail?: string
+          reward_type: string
+          skills?: string[]
+          spots?: number
+          status?: string
+          time_needed?: string
+          title: string
+        }
+        Update: {
+          building_id?: string | null
+          created_at?: string
+          created_by?: string
+          department?: string
+          description?: string
+          id?: string
+          requester_name?: string
+          reward_detail?: string
+          reward_type?: string
+          skills?: string[]
+          spots?: number
+          status?: string
+          time_needed?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "help_requests_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           ai_summary: string | null
@@ -404,6 +501,59 @@ export type Database = {
           },
         ]
       }
+      safety_notices: {
+        Row: {
+          area: string
+          building_id: string | null
+          category: string
+          fetched_at: string
+          id: string
+          kind: string
+          occurred_on: string | null
+          show_pin: boolean
+          source_key: string
+          source_url: string
+          summary: string
+          title: string
+        }
+        Insert: {
+          area?: string
+          building_id?: string | null
+          category: string
+          fetched_at?: string
+          id?: string
+          kind?: string
+          occurred_on?: string | null
+          show_pin?: boolean
+          source_key: string
+          source_url: string
+          summary: string
+          title: string
+        }
+        Update: {
+          area?: string
+          building_id?: string | null
+          category?: string
+          fetched_at?: string
+          id?: string
+          kind?: string
+          occurred_on?: string | null
+          show_pin?: boolean
+          source_key?: string
+          source_url?: string
+          summary?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "safety_notices_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -483,6 +633,22 @@ export type Database = {
           sfsu_verified: boolean
         }[]
       }
+      help_offers_for: {
+        Args: { p_request_id: string }
+        Returns: {
+          completed_at: string
+          created_at: string
+          events_attended: number
+          grad_year: number
+          major: string
+          note: string
+          offer_id: string
+          sfsu_verified: boolean
+          status: string
+          student_id: string
+          student_name: string
+        }[]
+      }
       host_attendance: {
         Args: never
         Returns: {
@@ -540,6 +706,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      set_help_offer_status: {
+        Args: { p_offer_id: string; p_status: string }
+        Returns: boolean
       }
       visible_attendance: {
         Args: never

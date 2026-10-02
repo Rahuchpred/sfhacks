@@ -6,10 +6,14 @@ import {
   Building2,
   ChartColumn,
   CircleUser,
+  ClipboardList,
+  HandHelping,
   LayoutDashboard,
   MapIcon,
+  MessageSquarePlus,
   PlusCircle,
   Search,
+  ShieldAlert,
   Ticket,
   Users,
   Utensils,
@@ -46,6 +50,8 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
       { href: "/food", label: "Free food", icon: Utensils },
       { href: "/clubs", label: "Clubs", icon: Building2 },
       { href: "/tickets", label: "My tickets", icon: Ticket },
+      { href: "/help", label: "Help board", icon: HandHelping, exact: true },
+      { href: "/safety", label: "Safety notices", icon: ShieldAlert },
     ],
   },
   {
@@ -55,6 +61,13 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
       { href: "/post", label: "Post an event", icon: PlusCircle },
       { href: "/host/clubs", label: "My clubs", icon: Users },
       { href: "/host/analytics", label: "Analytics", icon: ChartColumn },
+    ],
+  },
+  {
+    label: "For faculty and staff",
+    items: [
+      { href: "/help/new", label: "Ask for help", icon: MessageSquarePlus },
+      { href: "/help/mine", label: "My requests", icon: ClipboardList },
     ],
   },
   {

@@ -255,3 +255,87 @@ export type RecruiterSearchResponse = { matches: RecruiterMatch[] };
 export type HostInsightsRequest = { stats: unknown };
 export type HostInsight = { title: string; detail: string };
 export type HostInsightsResponse = { insights: HostInsight[]; nextEvent: string };
+
+// Help board: faculty and staff ask for one-time help, students offer it.
+
+export const REWARD_TYPES = [
+  "course credit",
+  "reference letter",
+  "experience",
+  "volunteer hours",
+  "paid",
+] as const;
+export type RewardType = (typeof REWARD_TYPES)[number];
+
+export type HelpRequest = {
+  id: string;
+  title: string;
+  description: string;
+  requesterName: string;
+  department: string;
+  buildingId: string | null;
+  timeNeeded: string; // plain words, for example "2 hours, one afternoon"
+  skills: string[];
+  rewardType: RewardType; // every request must say what the student gets
+  rewardDetail: string;
+  spots: number;
+  status: "open" | "closed";
+  createdBy: string;
+  createdAt: string;
+};
+
+export type NewHelpRequest = Omit<HelpRequest, "id" | "status" | "createdBy" | "createdAt">;
+
+export type HelpOfferStatus = "pending" | "accepted" | "declined" | "done";
+
+// A student's own offer, with the request it is for.
+export type MyHelpOffer = {
+  id: string;
+  requestId: string;
+  note: string;
+  status: HelpOfferStatus;
+  createdAt: string;
+  completedAt: string | null;
+  request: HelpRequest;
+};
+
+// An offer as the requester sees it.
+export type HelpOffer = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  major: string;
+  gradYear: number | null;
+  sfsuVerified: boolean;
+  eventsAttended: number;
+  note: string;
+  status: HelpOfferStatus;
+  createdAt: string;
+  completedAt: string | null;
+};
+
+export type StructureHelpRequest = { text: string };
+export type StructureHelpResponse = {
+  title: string;
+  description: string;
+  timeNeeded: string;
+  skills: string[];
+  rewardType: RewardType | null; // null when the text does not say what the student gets
+  rewardDetail: string;
+  buildingId: string | null;
+};
+
+// Official University Police notices. Written by the server only.
+export type SafetyNotice = {
+  id: string;
+  sourceUrl: string;
+  kind: string;
+  category: string;
+  title: string;
+  summary: string; // neutral, with no description of any person
+  area: string;
+  buildingId: string | null;
+  showPin: boolean; // false for notices that must not be pinned to a place
+  occurredOn: string | null;
+  fetchedAt: string;
+};

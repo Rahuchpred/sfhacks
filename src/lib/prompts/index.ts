@@ -1,6 +1,6 @@
 // Prompt builders. Starter versions: Thread B owns and improves these.
 import { EVENT_TAGS, FOOD_OPTIONS, TIMEZONE } from "@/lib/checks";
-import type { Building, EventDraft, EventIssue } from "@/lib/types";
+import { REWARD_TYPES, type Building, type EventDraft, type EventIssue } from "@/lib/types";
 
 function nowLine(): string {
   const now = new Date();
@@ -211,4 +211,64 @@ Rules:
 
 Reply with only this JSON object, no other text:
 { "insights": [{ "title": string, "detail": string }], "nextEvent": string }`;
+}
+
+export function structureHelpPrompt(buildings: Building[], text: string): string {
+  return `A faculty or staff member at San Francisco State University wants a student's help with a one-time task. Turn their words into a clear request that a student can understand in ten seconds.
+
+Campus buildings:
+${buildingList(buildings)}
+
+What they wrote:
+"""
+${text}
+"""
+
+Rules:
+- "title": 4 to 9 words, starting with a verb, saying what the student will do.
+- "description": 2 or 3 plain sentences on the task and why it matters. Use only what they wrote.
+- "timeNeeded": how long it takes in plain words, or "" if they did not say.
+- "skills": 0 to 4 short skills the task needs, only ones the text implies.
+- "rewardType": what the student gets, one of: ${REWARD_TYPES.join(", ")}. Use null if the text does not say. Never assume one.
+- "rewardDetail": one sentence on what the student gets, or "" if not said.
+- "buildingId": an id from the list if a place is named, otherwise null.
+- Never invent a detail.
+
+Reply with only this JSON object, no other text:
+{
+  "title": string,
+  "description": string,
+  "timeNeeded": string,
+  "skills": string[],
+  "rewardType": string | null,
+  "rewardDetail": string,
+  "buildingId": string | null
+}`;
+}
+
+export function safetyNoticesPrompt(buildings: Building[], pageText: string): string {
+  return `Below is the text of the San Francisco State University Police "Timely Warnings" web page. Extract each individual warning into a short, neutral notice for a campus map.
+
+Campus buildings:
+${buildingList(buildings)}
+
+Page text:
+"""
+${pageText}
+"""
+
+Rules:
+- One entry per warning. Skip the general introduction and the general safety tips.
+- "title": the warning's own heading, without the date.
+- "category": a short plain type, for example "Robbery", "Burglary", "Sexual assault", "Aggravated assault".
+- "occurredOn": the date of the incident as YYYY-MM-DD, or null.
+- "area": the general place in a few words (a building name or a street), exactly as the notice gives it.
+- "buildingId": an id from the list only if the notice names that building, otherwise null.
+- "summary": one or two neutral sentences on what kind of incident happened, where and when, and what University Police are doing.
+- The summary must NOT describe any person: no clothing, appearance, race, age or gender of a suspect, and nothing about the victim beyond "a community member". Leave out graphic detail.
+- "sensitive": true for sexual assault, sexual battery, stalking, domestic or dating violence, and anything inside a residence hall. Otherwise false.
+- Use only what the page says. Never invent a detail.
+
+Reply with only this JSON object, no other text:
+{ "notices": [{ "title": string, "category": string, "occurredOn": string | null, "area": string, "buildingId": string | null, "summary": string, "sensitive": boolean }] }`;
 }

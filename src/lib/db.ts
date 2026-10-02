@@ -3,6 +3,12 @@ import { supabase, UPLOADS_BUCKET } from "@/lib/supabase/client";
 import type { Database } from "@/lib/database.types";
 import type {
   AttendanceRow,
+  HelpOffer,
+  HelpOfferStatus,
+  HelpRequest,
+  MyHelpOffer,
+  NewHelpRequest,
+  SafetyNotice,
   AttendedEvent,
   Building,
   CampusEvent,
@@ -543,6 +549,183 @@ export async function listVisibleAttendance(): Promise<AttendedEvent[]> {
     clubName: row.club_name,
     tags: row.tags,
     startsAt: row.starts_at,
+  }));
+}
+
+// Help board
+
+type HelpRequestRow = Database["public"]["Tables"]["help_requests"]["Row"];
+
+function toHelpRequest(row: HelpRequestRow): HelpRequest {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    requesterName: row.requester_name,
+    department: row.department,
+    buildingId: row.building_id,
+    timeNeeded: row.time_needed,
+    skills: row.skills,
+    rewardType: row.reward_type as HelpRequest["rewardType"],
+    rewardDetail: row.reward_detail,
+    spots: row.spots,
+    status: row.status as HelpRequest["status"],
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+  };
+}
+
+export async function listOpenHelpRequests(): Promise<HelpRequest[]> {
+  const { data, error } = await supabase
+    .from("help_requests")
+    .select("*")
+    .eq("status", "open")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data.map(toHelpRequest);
+}
+
+export async function getHelpRequest(id: string): Promise<HelpRequest | null> {
+  const { data, error } = await supabase
+    .from("help_requests")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? toHelpRequest(data) : null;
+}
+
+// Requests the signed-in user posted, open and closed.
+export async function listMyHelpRequests(): Promise<HelpRequest[]> {
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return [];
+  const { data, error } = await supabase
+    .from("help_requests")
+    .select("*")
+    .eq("created_by", auth.user.id)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data.map(toHelpRequest);
+}
+
+export async function createHelpRequest(request: NewHelpRequest): Promise<HelpRequest> {
+  const { data, error } = await supabase
+    .from("help_requests")
+    .insert({
+      title: request.title,
+      description: request.description,
+      requester_name: request.requesterName,
+      department: request.department,
+      building_id: request.buildingId,
+      time_needed: request.timeNeeded,
+      skills: request.skills,
+      reward_type: request.rewardType,
+      reward_detail: request.rewardDetail,
+      spots: request.spots,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return toHelpRequest(data);
+}
+
+export async function setHelpRequestStatus(
+  id: string,
+  status: HelpRequest["status"],
+): Promise<void> {
+  const { error } = await supabase.from("help_requests").update({ status }).eq("id", id);
+  if (error) throw error;
+}
+
+// A student offers to help. One offer per request.
+export async function offerHelp(requestId: string, note: string): Promise<void> {
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) throw new Error("Not signed in.");
+  const { error } = await supabase
+    .from("help_offers")
+    .insert({ request_id: requestId, uid: auth.user.id, note });
+  if (error) throw error;
+}
+
+// Only a pending offer can be withdrawn.
+export async function withdrawHelpOffer(offerId: string): Promise<void> {
+  const { error } = await supabase.from("help_offers").delete().eq("id", offerId);
+  if (error) throw error;
+}
+
+// The signed-in student's offers with their requests. "done" ones belong on the profile.
+export async function listMyHelpOffers(): Promise<MyHelpOffer[]> {
+  const { data, error } = await supabase
+    .from("help_offers")
+    .select("*, help_requests(*)")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data
+    .filter((row) => row.help_requests)
+    .map((row) => ({
+      id: row.id,
+      requestId: row.request_id,
+      note: row.note,
+      status: row.status as HelpOfferStatus,
+      createdAt: row.created_at,
+      completedAt: row.completed_at,
+      request: toHelpRequest(row.help_requests),
+    }));
+}
+
+// Requester only: returns an empty list for anyone else.
+export async function listHelpOffers(requestId: string): Promise<HelpOffer[]> {
+  const { data, error } = await supabase.rpc("help_offers_for", { p_request_id: requestId });
+  if (error) throw error;
+  return data.map((row) => ({
+    id: row.offer_id,
+    studentId: row.student_id,
+    studentName: row.student_name,
+    major: row.major,
+    gradYear: row.grad_year,
+    sfsuVerified: row.sfsu_verified,
+    eventsAttended: Number(row.events_attended),
+    note: row.note,
+    status: row.status as HelpOfferStatus,
+    createdAt: row.created_at,
+    completedAt: row.completed_at,
+  }));
+}
+
+// Requester only: accept, decline or mark an offer done. False when not allowed.
+export async function setHelpOfferStatus(
+  offerId: string,
+  status: "accepted" | "declined" | "done",
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc("set_help_offer_status", {
+    p_offer_id: offerId,
+    p_status: status,
+  });
+  if (error) throw error;
+  return data;
+}
+
+// Safety notices
+
+// Official University Police notices, newest first.
+export async function listSafetyNotices(): Promise<SafetyNotice[]> {
+  const { data, error } = await supabase
+    .from("safety_notices")
+    .select("*")
+    .order("occurred_on", { ascending: false, nullsFirst: false });
+  if (error) throw error;
+  return data.map((row) => ({
+    id: row.id,
+    sourceUrl: row.source_url,
+    kind: row.kind,
+    category: row.category,
+    title: row.title,
+    summary: row.summary,
+    area: row.area,
+    buildingId: row.building_id,
+    showPin: row.show_pin,
+    occurredOn: row.occurred_on,
+    fetchedAt: row.fetched_at,
   }));
 }
 
