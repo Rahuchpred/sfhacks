@@ -1,42 +1,35 @@
 import type { Metadata } from "next";
-import { PostTabs } from "@/components/post/post-tabs";
+import Link from "next/link";
+import { Utensils } from "lucide-react";
+import { PostEvent } from "@/components/post/post-event";
 
-export const metadata: Metadata = { title: "Post | Gator Radar" };
+export const metadata: Metadata = { title: "Post an event | Gator Radar" };
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const one = (value: string | string[] | undefined) =>
-  Array.isArray(value) ? value[0] : value;
-
-// /post?tab=event and /post?tab=food open a form directly. A finished event
-// links here with ?tab=food&event=<id>&building=<id>&room=<room>.
+// /post creates an event. Old /post?tab=food links land on a note that points to Host.
 export default async function PostPage({ searchParams }: PageProps<"/post">) {
   const params = await searchParams;
-  const tab = one(params.tab);
-  const eventId = one(params.event);
-  const building = one(params.building);
+  const tab = Array.isArray(params.tab) ? params.tab[0] : params.tab;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
-      <div className="mx-auto mb-6 max-w-2xl">
-        <h1 id="post-kind" className="text-2xl font-semibold tracking-tight text-balance">
-          What are you sharing?
-        </h1>
-        <p className="mt-1 text-pretty text-muted-foreground">
-          AI drafts it, you confirm it. Nothing goes live until you press Publish.
+      <h1 className="mx-auto mb-6 max-w-4xl text-2xl font-semibold tracking-tight text-balance">
+        Post an event
+      </h1>
+      {tab === "food" && (
+        <p className="mx-auto mb-6 flex max-w-4xl items-start gap-2 rounded-xl border border-accent/40 bg-accent/15 p-3 text-sm text-pretty text-accent-foreground">
+          <Utensils className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <span>
+            Leftover food is now posted from your event&apos;s page.{" "}
+            <Link
+              href="/host"
+              className="font-medium underline underline-offset-4 hover:no-underline"
+            >
+              Go to Host
+            </Link>
+          </span>
         </p>
-      </div>
-      <PostTabs
-        initialKind={tab === "food" || tab === "event" ? tab : null}
-        foodPrefill={
-          building
-            ? {
-                eventId: eventId && UUID.test(eventId) ? eventId : null,
-                buildingId: building,
-                room: one(params.room) ?? "",
-              }
-            : undefined
-        }
-      />
+      )}
+      <PostEvent />
     </div>
   );
 }
