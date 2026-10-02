@@ -58,7 +58,11 @@ function PinShell({
       className="relative block"
       onMouseEnter={() => onHover(true)}
       onMouseLeave={() => onHover(false)}
-      onFocus={() => onHover(true)}
+      // Keyboard focus only. A pin also gets focus back when its list closes after a
+      // click, and that must not leave it lit with the pointer somewhere else.
+      onFocus={(event) => {
+        if (event.target.matches(":focus-visible")) onHover(true);
+      }}
       onBlur={() => onHover(false)}
     >
       {fresh && <FreshRing className={tone === "food" ? "bg-accent/70" : "bg-primary/60"} />}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRequireAccount } from "@/components/auth-provider";
+import { useAuth, useRequireAccount } from "@/components/auth-provider";
 import { useId, useState } from "react";
 import Link from "next/link";
 import { CircleCheck, Loader2 } from "lucide-react";
@@ -54,6 +54,9 @@ export function RegistrationCard({
   const nameId = useId();
 
   const requireAccount = useRequireAccount();
+  // Until the profile is known a signed-in student still looks like a guest, and a press
+  // would send them to the onboarding.
+  const { ready: authReady } = useAuth();
 
   async function register() {
     if (!requireAccount()) return;
@@ -166,10 +169,10 @@ export function RegistrationCard({
           <Button
             size="lg"
             className="h-10 w-full text-base"
-            disabled={!ready || busy}
+            disabled={!ready || !authReady || busy}
             onClick={register}
           >
-            {(busy || !ready) && <Spinner />}
+            {(busy || !ready || !authReady) && <Spinner />}
             {busy ? "Registering…" : "Register"}
           </Button>
         </CardContent>

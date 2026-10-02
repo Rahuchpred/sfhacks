@@ -9,6 +9,7 @@ import { countLabel } from "@/components/map/map-utils";
 import { useNow } from "@/components/map/use-event-filters";
 import { TicketCard, TicketCardSkeleton } from "@/components/tickets/ticket-card";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cancelRsvp, listBuildings, listMyTickets, rsvpEvent } from "@/lib/db";
 import type { Building, TicketWithEvent } from "@/lib/types";
 
@@ -122,9 +123,12 @@ export default function TicketsPage() {
           </Button>
         </div>
       ) : loading ? (
-        <div aria-hidden className="mt-6 space-y-4">
-          <TicketCardSkeleton />
-          <TicketCardSkeleton />
+        <div aria-hidden className="mt-6">
+          <Skeleton className="h-5 w-20" />
+          <div className="mt-3 space-y-4">
+            <TicketCardSkeleton />
+            <TicketCardSkeleton />
+          </div>
         </div>
       ) : tickets.length === 0 ? (
         <div className="mt-16 flex flex-col items-center gap-3 text-center">

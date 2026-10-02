@@ -20,7 +20,8 @@ import { useCampus } from "@/lib/use-campus";
 
 // Event list on the left, map on the right. On a phone the map sits on top of the list.
 export default function MapPage() {
-  const { buildings, events, rescues, loading, error } = useCampus();
+  const campus = useCampus();
+  const { buildings, loading, error } = campus;
   // Official University Police notices. A failed load just means no markers.
   const [notices, setNotices] = useState<SafetyNotice[]>([]);
   useEffect(() => {
@@ -29,6 +30,16 @@ export default function MapPage() {
       .catch(() => {});
   }, []);
   const now = useNow();
+  // The feed reloads only when something changes, so drop what ran out while the page was
+  // open. Otherwise an ended event stays on the map and splits the "Happening now" section.
+  const events = useMemo(() => {
+    const live = campus.events.filter((event) => Date.parse(event.endsAt) >= now);
+    return live.length === campus.events.length ? campus.events : live;
+  }, [campus.events, now]);
+  const rescues = useMemo(() => {
+    const open = campus.rescues.filter((rescue) => Date.parse(rescue.safeUntil) > now);
+    return open.length === campus.rescues.length ? campus.rescues : open;
+  }, [campus.rescues, now]);
   const user = useUser();
   const userId = user?.id ?? null;
 
@@ -131,7 +142,7 @@ export default function MapPage() {
         : shown;
 
   return (
-    <div className="absolute inset-0 flex touch-manipulation flex-col md:flex-row">
+    <div className="@container absolute inset-0 flex touch-manipulation flex-col md:flex-row">
       <aside className="order-2 flex h-[58%] min-h-0 flex-col border-t md:order-1 md:h-auto md:w-96 md:shrink-0 md:border-t-0 md:border-r">
         <div className="flex items-baseline justify-between gap-3 border-b px-5 py-2 md:block md:py-4">
           <h1 className="shrink-0 text-base font-semibold tracking-tight md:text-lg">Happening on campus</h1>
@@ -174,14 +185,14 @@ export default function MapPage() {
         >
           <SafetyMarkers notices={notices} buildings={buildings} />
         </CampusMap>
-        {!loading && !error && <Legend events={filters.events} />}
+        {!loading && !error && <Legend events={filters.events} aside={selection !== null} />}
       </div>
 
       <DetailPanel
         selection={selection}
         buildings={buildings}
         events={filters.events}
-        allEvents={events}
+        allEvents={campus.events}
         rescues={filters.rescues}
         now={now}
         onSelect={setSelection}

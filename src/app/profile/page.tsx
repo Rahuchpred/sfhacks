@@ -172,22 +172,25 @@ function ProfileSkeleton() {
       <p role="status" className="sr-only">
         Loading your profile…
       </p>
-      <div className="flex flex-col gap-2">
-        <Skeleton className="h-8 w-56" />
-        <Skeleton className="h-4 w-40" />
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+        <Skeleton className="size-16 shrink-0 rounded-full sm:size-20" />
+        <div className="flex flex-col gap-2 sm:pt-1">
+          <Skeleton className="h-9 w-56" />
+          <Skeleton className="h-4 w-40" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Skeleton className="h-[4.75rem] rounded-xl" />
+        <Skeleton className="h-[4.75rem] rounded-xl" />
+        <Skeleton className="col-span-2 h-[4.75rem] rounded-xl sm:col-span-1" />
       </div>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-8">
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-3">
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-52 w-full rounded-xl" />
+            <Skeleton className="h-7 w-48" />
+            <Skeleton className="h-24 w-full rounded-xl" />
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Skeleton className="h-16 rounded-xl" />
-            <Skeleton className="h-16 rounded-xl" />
-            <Skeleton className="col-span-2 h-16 rounded-xl sm:col-span-1" />
-          </div>
-          <Skeleton className="h-36 w-full rounded-xl" />
+          <Skeleton className="h-40 w-full rounded-xl" />
         </div>
         <div className="flex flex-col gap-6">
           <Skeleton className="h-96 w-full rounded-xl" />
