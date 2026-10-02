@@ -13,6 +13,7 @@ import type {
   RecruiterMatch,
   RecruiterSearchResponse,
 } from "@/lib/types";
+import { VoiceButton } from "@/components/planner/voice-button";
 
 const EXAMPLES = [
   "machine learning workshops and hackathons",
@@ -307,6 +308,12 @@ export function RecruiterSearch() {
                   search(query);
                 }
               }}
+            />
+            <VoiceButton
+              value={query}
+              onChange={setQuery}
+              onDone={() => document.getElementById("recruiter-query")?.focus()}
+              disabled={searching}
             />
             <Button
               type="submit"

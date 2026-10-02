@@ -4,8 +4,7 @@
 // one centered prompt box that the spoken words land in, the recording state
 // shown inside it. The microphone itself follows Microsoft Copilot voice mode
 // (see mic-button.tsx), and the results follow DoorDash Merchant (plan-results.tsx).
-import { useEffect, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { ArrowUp, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { errorMessage } from "@/components/post/form-utils";
-import { savePrefill } from "@/components/post/prefill";
+import type { EventPrefill } from "@/components/post/prefill";
 import { listMyClubs } from "@/lib/db";
 import type { PlanEventResponse, PlanOption } from "@/lib/planner-types";
 import type { MyClub } from "@/lib/types";
@@ -30,8 +29,9 @@ import { useSpeech } from "./use-speech";
 const JUST_ME = "me";
 const MIN_LENGTH = 10;
 
-export function Planner() {
-  const router = useRouter();
+// The idea box on the post page. Picking an option hands it to the form below.
+export function Planner({ onUse }: { onUse: (prefill: EventPrefill) => void }) {
+  const textRef = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState("");
   // What was typed before the microphone was turned on. Speech is added after it.
   const spokenAfter = useRef("");
@@ -47,8 +47,7 @@ export function Planner() {
   const [plannedText, setPlannedText] = useState<string | null>(null);
   const planId = useRef(0);
 
-  const [opening, setOpening] = useState<number | null>(null);
-  const [, startNavigation] = useTransition();
+  const [used, setUsed] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,6 +74,7 @@ export function Planner() {
       const result = await planEvent({ transcript, clubId: clubId ?? undefined });
       if (id !== planId.current) return;
       setPlan(result);
+      setUsed(null);
     } catch (error) {
       if (id !== planId.current) return;
       setPlanError(errorMessage(error, "Could not plan that."));
@@ -87,15 +87,20 @@ export function Planner() {
 
   const speech = useSpeech({
     onLive: (spoken) => setText(withSpeech(spoken)),
-    // The one automatic AI call: when the host stops talking.
+    // Speech only fills the box. The host reads it, fixes it, then sends it.
     onDone: (spoken) => {
       if (!spoken) {
         setNote("Did not catch that");
         return;
       }
-      const full = withSpeech(spoken);
-      setText(full);
-      makePlan(full);
+      setText(withSpeech(spoken));
+      setNote("Check it, then plan");
+      requestAnimationFrame(() => {
+        const box = textRef.current;
+        if (!box) return;
+        box.focus();
+        box.setSelectionRange(box.value.length, box.value.length);
+      });
     },
   });
 
@@ -118,7 +123,7 @@ export function Planner() {
   function use(option: PlanOption, index: number) {
     if (!plan) return;
     const club = clubs.find((item) => item.id === clubId);
-    savePrefill({
+    onUse({
       title: plan.idea.title,
       description: plan.idea.description,
       tags: plan.idea.tags,
@@ -130,8 +135,7 @@ export function Planner() {
       startsAt: option.startsAt,
       endsAt: option.endsAt,
     });
-    setOpening(index);
-    startNavigation(() => router.push("/post"));
+    setUsed(index);
   }
 
   const downloading = speech.download !== null;
@@ -201,6 +205,7 @@ export function Planner() {
             Your event idea
           </label>
           <textarea
+            ref={textRef}
             id="plan-idea-text"
             name="idea"
             autoComplete="off"
@@ -208,14 +213,17 @@ export function Planner() {
             value={text}
             readOnly={hearing}
             disabled={planning}
-            onChange={(event) => setText(event.target.value)}
+            onChange={(event) => {
+              setText(event.target.value);
+              if (note) setNote(null);
+            }}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                 event.preventDefault();
                 submit();
               }
             }}
-            placeholder="Or type it: boba and board games night next week, about 40 people, 2 hours…"
+            placeholder="Say or type your idea: boba and board games night next week, about 40 people, 2 hours…"
             className="field-sizing-content max-h-60 min-h-24 w-full resize-none bg-transparent px-4 pt-4 text-base outline-none placeholder:text-muted-foreground/70 disabled:opacity-60"
           />
           <div className="flex items-center justify-between gap-2 p-2.5">
@@ -279,7 +287,7 @@ export function Planner() {
             </Button>
           </div>
         ) : (
-          plan && <PlanResults plan={plan} opening={opening} onUse={use} />
+          plan && <PlanResults plan={plan} opening={used} onUse={use} />
         )}
       </div>
     </div>

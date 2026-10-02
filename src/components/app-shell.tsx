@@ -15,7 +15,6 @@ import {
   LogOut,
   MapIcon,
   MessageSquarePlus,
-  Mic,
   PlusCircle,
   Search,
   ShieldAlert,
@@ -92,7 +91,6 @@ const CLUBS: NavGroup = {
   label: "For clubs",
   items: [
     { href: "/host", label: "Dashboard", icon: LayoutDashboard, exact: true },
-    { href: "/plan", label: "Plan an event", icon: Mic },
     { href: "/post", label: "Post an event", icon: PlusCircle },
     { href: "/host/clubs", label: "My clubs", icon: Users },
     { href: "/host/analytics", label: "Analytics", icon: ChartColumn },
@@ -164,7 +162,6 @@ const TITLES: [RegExp, string][] = [
   [/^\/host\/[^/]+\/check-in/, "Check in"],
   [/^\/host\/[^/]+\/food/, "Leftover food"],
   [/^\/host\/reports(\/|$)/, "Reports"],
-  [/^\/plan(\/|$)/, "Plan an event"],
   [/^\/host\/(?!clubs|analytics|reports)[^/]+$/, "Manage event"],
   [/^\/help\/(?!new|mine)[^/]+/, "Help request"],
 ];

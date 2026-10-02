@@ -3,7 +3,7 @@
 // Reference: DoorDash Merchant "Set a schedule" (Mobbin, web): bordered option
 // cards, the recommended one marked, one short reason line under each. The
 // time on each card is set large like the slot chips in Calendly's meeting poll.
-import { CircleCheck, Clock, Loader2, MapPin, Users, Utensils } from "lucide-react";
+import { Check, CircleCheck, Clock, MapPin, Users, Utensils } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { PlanEventResponse, PlanOption } from "@/lib/planner-types";
@@ -17,7 +17,7 @@ const enter =
 
 type PlanResultsProps = {
   plan: PlanEventResponse;
-  // Index of the option being opened in the post form, if any.
+  // Index of the option now in the form below, if any.
   opening: number | null;
   onUse: (option: PlanOption, index: number) => void;
 };
@@ -150,15 +150,13 @@ export function PlanResults({ plan, opening, onUse }: PlanResultsProps) {
 
                 <Button
                   size="lg"
-                  variant={index === 0 ? "default" : "outline"}
+                  variant={opening === index || (opening === null && index === 0) ? "default" : "outline"}
                   className="mt-auto h-10 w-full"
-                  disabled={opening !== null}
+                  aria-pressed={opening === index}
                   onClick={() => onUse(option, index)}
                 >
-                  {opening === index && (
-                    <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden />
-                  )}
-                  Use this
+                  {opening === index && <Check aria-hidden />}
+                  {opening === index ? "In the form" : "Use this"}
                 </Button>
               </li>
             ))}
