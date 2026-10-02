@@ -1,13 +1,24 @@
 "use client";
 
+// The panel opens with the same tile, time line and crowd count as the row that was
+// picked, so a row and its detail read as one event. See event-list.tsx for references.
+
 import Link from "next/link";
 import { ArrowLeft, CalendarDays, Clock, MapPin, Users, Utensils, X } from "lucide-react";
+import {
+  EventTile,
+  GoingCount,
+  RescueTile,
+  WhenLine,
+} from "@/components/events/event-tile";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Building, CampusEvent, FoodRescue } from "@/lib/types";
+import { mainCategory } from "./categories";
 import {
   countLabel,
+  durationLabel,
   formatTime,
   formatTimeRange,
   isHappeningNow,
@@ -36,17 +47,27 @@ function Fact({ icon: Icon, children }: { icon: typeof Clock; children: React.Re
 
 function EventDetail({ event, building, now }: { event: CampusEvent; building?: Building; now: number }) {
   const ended = Date.parse(event.endsAt) < now;
+  const live = isHappeningNow(event, now);
+  const category = mainCategory(event);
 
   return (
     <div className="space-y-4 p-5">
-      <div className="space-y-2">
-        <div className="flex flex-wrap gap-1.5">
-          {isHappeningNow(event, now) && <Badge>Happening now</Badge>}
-          {event.hasFood && <Badge className="bg-accent text-accent-foreground">Free food</Badge>}
+      <div className="flex items-start gap-3">
+        <EventTile event={event} now={now} size="lg" />
+        <div className="min-w-0 flex-1 space-y-1">
+          <WhenLine event={event} now={now} />
+          <h2 className="text-lg leading-snug font-semibold tracking-tight text-balance break-words">
+            {event.title}
+          </h2>
         </div>
-        <h2 className="text-lg leading-snug font-semibold tracking-tight text-balance break-words">
-          {event.title}
-        </h2>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Badge className={category.tint}>
+          <category.icon aria-hidden /> {category.label}
+        </Badge>
+        {event.hasFood && <Badge className="bg-accent text-accent-foreground">Free food</Badge>}
+        <GoingCount event={event} live={live} className="ml-1" />
       </div>
 
       <div className="space-y-2">
@@ -96,16 +117,9 @@ function EventDetail({ event, building, now }: { event: CampusEvent; building?: 
         </ul>
       )}
 
-      <div className="flex items-center gap-3">
-        <Link href={`/events/${event.id}`} className={cn(buttonVariants({ size: "lg" }), "flex-1")}>
-          {ended ? "View event" : "View and register"}
-        </Link>
-        {event.rsvpCount > 0 && (
-          <p className="shrink-0 text-sm text-muted-foreground tabular-nums">
-            {event.rsvpCount} going
-          </p>
-        )}
-      </div>
+      <Link href={`/events/${event.id}`} className={cn(buttonVariants({ size: "lg" }), "w-full")}>
+        {ended ? "View event" : "View and register"}
+      </Link>
 
       {event.flyerUrl && (
         // Flyers are user uploads on Supabase storage, so the size is not known ahead of time.
@@ -127,20 +141,27 @@ function RescueDetail({
   rescue,
   building,
   from,
+  now,
 }: {
   rescue: FoodRescue;
   building?: Building;
   from?: CampusEvent; // the event the food is left over from, when it is still listed
+  now: number;
 }) {
+  const left = Date.parse(rescue.safeUntil) - now;
   return (
     <div className="space-y-4 p-5">
-      <div className="space-y-2">
-        <Badge className="bg-accent text-accent-foreground">
-          <Utensils aria-hidden /> Free food
-        </Badge>
-        <h2 className="text-lg leading-snug font-semibold tracking-tight text-balance break-words">
-          {rescue.items}
-        </h2>
+      <div className="flex items-start gap-3">
+        <RescueTile rescue={rescue} size="lg" />
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="flex flex-wrap items-center gap-x-1.5 text-xs tabular-nums">
+            <span className="font-semibold">Free food</span>
+            {left > 0 && <span className="text-muted-foreground">{durationLabel(left)} left</span>}
+          </p>
+          <h2 className="text-lg leading-snug font-semibold tracking-tight text-balance break-words">
+            {rescue.items}
+          </h2>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -273,6 +294,7 @@ export function DetailPanel({
             rescue={rescue}
             building={building}
             from={allEvents.find((item) => item.id === rescue.eventId)}
+            now={now}
           />
         )}
 
@@ -296,12 +318,17 @@ export function DetailPanel({
                   <button
                     type="button"
                     onClick={() => onSelect({ kind: "rescue", id: item.id })}
-                    className="block w-full rounded-lg border border-accent/60 bg-accent/10 p-3 text-left transition-colors hover:bg-accent/20 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                    className="flex w-full items-start gap-3 rounded-lg border border-accent/60 bg-accent/10 p-3 text-left transition-colors duration-150 hover:bg-accent/20 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none motion-reduce:transition-none"
                   >
-                    <span className="block text-sm font-medium break-words">{item.items}</span>
-                    <span className="mt-0.5 block text-sm text-muted-foreground tabular-nums">
-                      {countLabel(item.portionsLeft, "portion")} left, safe until{" "}
-                      {formatTime(item.safeUntil)}
+                    <RescueTile rescue={item} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm leading-snug font-semibold break-words">
+                        {item.items}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground tabular-nums">
+                        {countLabel(item.portionsLeft, "portion")} left, safe until{" "}
+                        {formatTime(item.safeUntil)}
+                      </span>
                     </span>
                   </button>
                 </li>
@@ -311,25 +338,37 @@ export function DetailPanel({
                   <button
                     type="button"
                     onClick={() => onSelect({ kind: "event", id: item.id })}
-                    className="block w-full rounded-lg border p-3 text-left transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                    className="flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors duration-150 hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none motion-reduce:transition-none"
                   >
-                    <span className="block text-sm font-medium break-words">{item.title}</span>
-                    <span className="mt-0.5 block text-sm text-muted-foreground">
-                      {formatTimeRange(item, now)}
-                      {item.room ? `, ${item.room}` : ""}
-                    </span>
-                    {item.hasFood && (
-                      <span className="mt-2 flex flex-wrap gap-1.5">
-                        {item.foodItems.length === 0 && (
-                          <Badge className="bg-accent text-accent-foreground">Free food</Badge>
-                        )}
-                        {item.foodItems.map((food) => (
-                          <Badge key={food} className="bg-accent text-accent-foreground capitalize">
-                            {food}
-                          </Badge>
-                        ))}
+                    <EventTile event={item} now={now} />
+                    <span className="min-w-0 flex-1">
+                      <WhenLine event={item} now={now} />
+                      <span className="mt-0.5 block text-sm leading-snug font-semibold break-words">
+                        {item.title}
                       </span>
-                    )}
+                      {item.room && (
+                        <span className="mt-0.5 block text-xs break-words text-muted-foreground">
+                          {item.room}
+                        </span>
+                      )}
+                      {(item.hasFood || item.rsvpCount > 0) && (
+                        <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          <GoingCount event={item} live={isHappeningNow(item, now)} />
+                          {item.hasFood && item.foodItems.length === 0 && (
+                            <Badge className="bg-accent text-accent-foreground">Free food</Badge>
+                          )}
+                          {item.hasFood &&
+                            item.foodItems.map((food) => (
+                              <Badge
+                                key={food}
+                                className="bg-accent text-accent-foreground capitalize"
+                              >
+                                {food}
+                              </Badge>
+                            ))}
+                        </span>
+                      )}
+                    </span>
                   </button>
                 </li>
               ))}

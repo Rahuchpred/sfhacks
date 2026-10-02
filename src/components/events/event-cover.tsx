@@ -1,12 +1,14 @@
+import { mainCategory } from "@/components/map/categories";
 import { cn } from "@/lib/utils";
 import type { CampusEvent } from "@/lib/types";
 
 type EventCoverProps = {
-  event: Pick<CampusEvent, "title" | "clubName" | "flyerUrl">;
+  event: Pick<CampusEvent, "title" | "clubName" | "flyerUrl" | "tags">;
   className?: string;
 };
 
-// The flyer, or a generated purple cover when the event has none.
+// The flyer, or a generated cover in the category colour when the event has none. It is
+// the large version of the tile that leads the event in every list.
 export function EventCover({ event, className }: EventCoverProps) {
   if (event.flyerUrl) {
     return (
@@ -22,19 +24,26 @@ export function EventCover({ event, className }: EventCoverProps) {
     );
   }
 
+  const category = mainCategory(event);
+  const Icon = category.icon;
+
   return (
     <div
       className={cn(
-        "flex aspect-video w-full flex-col md:aspect-square justify-between rounded-xl bg-primary p-6 text-white",
+        "relative flex aspect-video w-full flex-col justify-between overflow-hidden rounded-xl p-6 md:aspect-square",
+        category.tint,
         className,
       )}
     >
-      <span aria-hidden className="size-3 rounded-full bg-accent" />
-      <div className="min-w-0 space-y-3">
+      <Icon aria-hidden className="absolute -right-8 -bottom-10 size-56 opacity-10" />
+      <span className="relative flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground">
+        <Icon aria-hidden className="size-5" />
+      </span>
+      <div className="relative min-w-0 space-y-3">
         <p className="line-clamp-6 text-3xl leading-tight font-semibold tracking-tight text-balance break-words">
           {event.title}
         </p>
-        <p className="text-sm font-medium break-words text-white/80">{event.clubName}</p>
+        <p className="text-sm font-medium break-words opacity-80">{event.clubName}</p>
       </div>
     </div>
   );

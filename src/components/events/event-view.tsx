@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight, CalendarPlus, Link2, MapPin, Utensils } from "lucide-react";
 import { toast } from "sonner";
 import { useUser } from "@/components/auth-provider";
+import { mainCategory } from "@/components/map/categories";
 import { formatTime, isHappeningNow, placeLabel } from "@/components/map/map-utils";
 import { useNow } from "@/components/map/use-event-filters";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,7 @@ import {
 import type { Building, CampusEvent, Ticket } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { EventCover } from "./event-cover";
+import { WhenLine } from "./event-tile";
 import { downloadIcs } from "./ics";
 import { RegistrationCard } from "./registration-card";
 
@@ -228,6 +230,7 @@ export function EventView({ id }: { id: string }) {
   const place = placeLabel(building, event.room);
   const ended = Date.parse(event.endsAt) < now;
   const live = isHappeningNow(event, now);
+  const category = mainCategory(event);
 
   function addToCalendar() {
     if (!event) return;
@@ -297,31 +300,30 @@ export function EventView({ id }: { id: string }) {
 
         <div className="min-w-0 space-y-6">
           <div className="space-y-3">
-            {(live || event.hasFood) && (
-              <ul aria-label="Highlights" className="flex flex-wrap gap-1.5">
-                {live && (
-                  <li>
-                    <Badge>Happening now</Badge>
+            {live && <WhenLine event={event} now={now} className="text-sm" />}
+            <ul aria-label="Highlights" className="flex flex-wrap gap-1.5">
+              <li>
+                <Badge className={category.tint}>
+                  <category.icon aria-hidden /> {category.label}
+                </Badge>
+              </li>
+              {event.hasFood && (
+                <li>
+                  <Badge className="bg-accent text-accent-foreground">Free food</Badge>
+                </li>
+              )}
+              {event.hasFood &&
+                event.foodItems.map((item) => (
+                  <li key={item}>
+                    <Badge
+                      variant="outline"
+                      className="border-accent/50 bg-accent/10 capitalize"
+                    >
+                      {item}
+                    </Badge>
                   </li>
-                )}
-                {event.hasFood && (
-                  <li>
-                    <Badge className="bg-accent text-accent-foreground">Free food</Badge>
-                  </li>
-                )}
-                {event.hasFood &&
-                  event.foodItems.map((item) => (
-                    <li key={item}>
-                      <Badge
-                        variant="outline"
-                        className="border-accent/50 bg-accent/10 capitalize"
-                      >
-                        {item}
-                      </Badge>
-                    </li>
-                  ))}
-              </ul>
-            )}
+                ))}
+            </ul>
             <h1 className="text-3xl leading-tight font-semibold tracking-tight text-balance break-words md:text-4xl">
               {event.title}
             </h1>
@@ -331,12 +333,15 @@ export function EventView({ id }: { id: string }) {
             <div className="flex items-center gap-3">
               <div
                 aria-hidden
-                className="flex size-10 shrink-0 flex-col overflow-hidden rounded-lg border text-center"
+                className={cn(
+                  "flex size-10 shrink-0 flex-col justify-center rounded-lg text-center",
+                  category.tint,
+                )}
               >
-                <span className="bg-muted text-[0.625rem] leading-4 font-semibold text-muted-foreground uppercase">
+                <span className="text-[0.625rem] leading-3 font-semibold tracking-wide uppercase opacity-80">
                   {monthFormat.format(new Date(event.startsAt))}
                 </span>
-                <span className="flex-1 text-sm leading-6 font-semibold tabular-nums">
+                <span className="text-base leading-5 font-semibold tabular-nums">
                   {new Date(event.startsAt).getDate()}
                 </span>
               </div>
