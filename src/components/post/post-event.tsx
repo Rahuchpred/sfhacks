@@ -16,7 +16,18 @@ export function PostEvent() {
   const [prefill, setPrefill] = useState<EventPrefill | null>(null);
   // Counts the picks, so picking another option starts the form over with it.
   const [picks, setPicks] = useState(0);
+  // Counts the posted events, so "Post another event" also clears the idea box.
+  const [round, setRound] = useState(0);
+  const topRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLDivElement>(null);
+
+  // After an event is live, the next one starts from an empty idea box and an empty form.
+  function startOver() {
+    setPrefill(null);
+    setPicks((count) => count + 1);
+    setRound((count) => count + 1);
+    requestAnimationFrame(() => topRef.current?.scrollIntoView({ block: "start" }));
+  }
 
   function applyPlan(next: EventPrefill) {
     setPrefill(next);
@@ -51,8 +62,8 @@ export function PostEvent() {
   }, []);
 
   return (
-    <div className="flex flex-col gap-10">
-      <Planner onUse={applyPlan} />
+    <div ref={topRef} className="flex scroll-mt-32 flex-col gap-10">
+      <Planner key={round} onUse={applyPlan} />
       {error && (
         <p role="alert" className="mx-auto w-full max-w-4xl text-sm font-medium text-destructive">
           Could not load the building list ({error}). Reload the page to try again.
@@ -64,6 +75,7 @@ export function PostEvent() {
           key={picks}
           buildings={buildings}
           prefill={prefill ?? undefined}
+          onStartOver={startOver}
         />
       </div>
     </div>

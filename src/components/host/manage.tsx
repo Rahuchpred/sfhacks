@@ -2,7 +2,7 @@
 
 // Mobbin reference (web): Sweatpals, event page with the title bar, actions and RSVP list.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -70,7 +70,16 @@ function ManageEvent({
 }) {
   const now = useNow(30_000);
   const [buildings, setBuildings] = useState<Building[]>([]);
+  // False until the building list has answered, so the place never reads "Campus" first.
+  const [placeReady, setPlaceReady] = useState(false);
   const [editing, setEditing] = useState(false);
+  const topRef = useRef<HTMLDivElement>(null);
+
+  // The form and the page it replaces have different heights, so each switch starts at the top.
+  function showEditor(next: boolean) {
+    setEditing(next);
+    requestAnimationFrame(() => topRef.current?.scrollIntoView({ block: "start" }));
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -80,6 +89,9 @@ function ManageEvent({
       })
       .catch(() => {
         // The page still works without building names; the place reads "Campus".
+      })
+      .finally(() => {
+        if (!cancelled) setPlaceReady(true);
       });
     return () => {
       cancelled = true;
@@ -100,7 +112,7 @@ function ManageEvent({
   const showLeftover = phase !== "upcoming" && event.hasFood;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div ref={topRef} className="flex scroll-mt-24 flex-col gap-8">
       <header className="flex flex-col gap-3">
         <Link
           href="/host"
@@ -128,7 +140,14 @@ function ManageEvent({
           </p>
           <p className="flex min-w-0 items-start gap-1.5">
             <MapPin aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-            <span className="min-w-0 break-words">{place}</span>
+            {placeReady ? (
+              <span className="min-w-0 break-words">{place}</span>
+            ) : (
+              <span
+                aria-hidden="true"
+                className="h-5 w-40 animate-pulse rounded-md bg-muted motion-reduce:animate-none"
+              />
+            )}
           </p>
           <Badge variant={PHASE[phase].variant}>{PHASE[phase].label}</Badge>
         </div>
@@ -139,10 +158,10 @@ function ManageEvent({
           buildings={buildings}
           initial={event}
           onSaved={() => {
-            setEditing(false);
+            showEditor(false);
             refresh();
           }}
-          onCancel={() => setEditing(false)}
+          onCancel={() => showEditor(false)}
         />
       ) : (
         <>
@@ -199,7 +218,7 @@ function ManageEvent({
               type="button"
               className={TILE}
               disabled={buildings.length === 0}
-              onClick={() => setEditing(true)}
+              onClick={() => showEditor(true)}
             >
               <span className={cn(TILE_ICON, "bg-primary/10 text-primary")}>
                 <Pencil aria-hidden="true" />

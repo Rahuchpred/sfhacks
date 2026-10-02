@@ -286,7 +286,7 @@ export function ClubManager() {
                     setErrors((current) => ({ ...current, clubName: undefined }));
                   }}
                 />
-                <Button type="submit" className="h-10 px-4" disabled={pending !== null}>
+                <Button type="submit" className="h-10 min-w-26 px-4" disabled={pending !== null}>
                   {pending === "create" ? "Creating…" : "Create"}
                 </Button>
               </div>
@@ -315,7 +315,7 @@ export function ClubManager() {
                 <Button
                   type="submit"
                   variant="outline"
-                  className="h-10 px-4"
+                  className="h-10 min-w-24 px-4"
                   disabled={pending !== null}
                 >
                   {pending === "join" ? "Joining…" : "Join"}

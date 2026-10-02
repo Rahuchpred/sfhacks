@@ -179,9 +179,18 @@ export type EventFormProps = {
   prefill?: EventPrefill;
   onSaved?: (event: CampusEvent) => void;
   onCancel?: () => void;
+  // Set when the page around the form starts over too: "Post another event" calls it.
+  onStartOver?: () => void;
 };
 
-export function EventForm({ buildings, initial, prefill, onSaved, onCancel }: EventFormProps) {
+export function EventForm({
+  buildings,
+  initial,
+  prefill,
+  onSaved,
+  onCancel,
+  onStartOver,
+}: EventFormProps) {
   const editing = initial !== undefined;
   const [startValues] = useState<Values>(() =>
     initial ? fromEvent(initial) : prefill ? fromPrefill(prefill) : EMPTY,
@@ -362,6 +371,7 @@ export function EventForm({ buildings, initial, prefill, onSaved, onCancel }: Ev
           startsAt: draft.startsAt,
           endsAt: draft.endsAt,
           hasFood: values.hasFood,
+          expectedPeople: prefill?.expectedPeople ?? undefined,
         }
       : null;
 
@@ -456,7 +466,7 @@ export function EventForm({ buildings, initial, prefill, onSaved, onCancel }: Ev
             Check guests in
           </Link>
         </div>
-        <Button variant="ghost" size="lg" className={big} onClick={reset}>
+        <Button variant="ghost" size="lg" className={big} onClick={onStartOver ?? reset}>
           Post another event
         </Button>
       </div>
@@ -480,7 +490,7 @@ export function EventForm({ buildings, initial, prefill, onSaved, onCancel }: Ev
   ];
   // An event being edited shows its club before the club list has loaded.
   if (values.clubId && !clubs.some((club) => club.id === values.clubId)) {
-    clubItems.push({ value: values.clubId, label: initial?.clubName || "Club" });
+    clubItems.push({ value: values.clubId, label: startValues.clubName || "Club" });
   }
   const buildingItems = buildings.map((building) => ({ value: building.id, label: building.name }));
 
@@ -546,14 +556,11 @@ export function EventForm({ buildings, initial, prefill, onSaved, onCancel }: Ev
             )}
           </div>
         )}
-      </section>
 
-      <div className="flex min-w-0 flex-col gap-3">
-        <h2 className="sr-only">Event details</h2>
-
+        {/* Sits under what is being read, so the fields beside it never jump. */}
         <div aria-live="polite">
           {isReading && (
-            <p className="flex animate-in items-center gap-2.5 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm duration-200 ease-out fade-in-0 slide-in-from-top-1 motion-reduce:animate-none">
+            <p className="flex animate-in flex-wrap items-center gap-x-2.5 gap-y-1 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm duration-200 ease-out fade-in-0 slide-in-from-top-1 motion-reduce:animate-none">
               <Loader2
                 className="size-4 shrink-0 animate-spin text-primary motion-reduce:animate-none"
                 aria-hidden
@@ -565,6 +572,10 @@ export function EventForm({ buildings, initial, prefill, onSaved, onCancel }: Ev
             </p>
           )}
         </div>
+      </section>
+
+      <div className="flex min-w-0 flex-col gap-3">
+        <h2 className="sr-only">Event details</h2>
 
         <fieldset
           disabled={busy}

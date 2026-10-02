@@ -79,7 +79,9 @@ export function formatHold(ms: number): string {
 }
 
 export function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
+  if (!(error instanceof Error) || !error.message) return fallback;
+  // A raw provider reply (a JSON dump, a quota notice) is not something to show a person.
+  return error.message.length > 160 || /^\s*[{[]/.test(error.message) ? fallback : error.message;
 }
 
 // POSTs JSON to an AI route. Throws with the route's own error message.

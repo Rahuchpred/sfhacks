@@ -96,8 +96,12 @@ export function useLeaveWarning(dirty: boolean) {
   }, [dirty]);
 }
 
+const MAX_ERROR_LENGTH = 160;
+
 export function errorMessage(error: unknown, fallback: string): string {
   // Supabase errors are plain objects with a message, not Error instances.
   const message = (error as { message?: unknown } | null)?.message;
-  return typeof message === "string" && message ? message : fallback;
+  if (typeof message !== "string" || !message) return fallback;
+  // A raw provider reply (a JSON dump, a quota notice) is not something to show a person.
+  return message.length > MAX_ERROR_LENGTH || /^\s*[{[]/.test(message) ? fallback : message;
 }

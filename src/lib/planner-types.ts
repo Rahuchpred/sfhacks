@@ -77,6 +77,8 @@ export type PlannerCheckRequest = {
   startsAt: string;
   endsAt: string;
   hasFood: boolean;
+  // The host's own estimate from the planner. Used only when there is no history.
+  expectedPeople?: number | null;
 };
 export type PlannerCheckResponse = {
   forecast: Forecast;

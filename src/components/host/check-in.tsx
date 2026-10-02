@@ -391,7 +391,7 @@ function CheckInBody({ id, event, version }: { id: string; event: CampusEvent; v
           <Button
             type="submit"
             disabled={busy}
-            className="h-12 shrink-0 touch-manipulation px-5 text-base"
+            className="h-12 min-w-36 shrink-0 touch-manipulation px-5 text-base"
           >
             {busy && (
               <LoaderCircle aria-hidden className="size-5 animate-spin motion-reduce:animate-none" />

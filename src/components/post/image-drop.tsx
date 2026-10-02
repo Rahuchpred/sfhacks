@@ -149,7 +149,10 @@ export function ImageDrop({
             event.preventDefault();
             if (!disabled) setDragging(true);
           }}
-          onDragLeave={() => setDragging(false)}
+          onDragLeave={(event) => {
+            // Moving over the icon or the text inside is not leaving the drop zone.
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);
+          }}
           onDrop={(event) => {
             event.preventDefault();
             setDragging(false);

@@ -104,6 +104,7 @@ export function useSpeech({ onLive, onDone }: Options) {
   // Loudness right now, 0 to 1. Read by the waveform on each frame.
   const level = useRef(0);
   const session = useRef<Session | null>(null);
+  const starting = useRef(false);
   const nextId = useRef(0);
   const handlers = useRef({ onLive, onDone });
   useEffect(() => {
@@ -169,7 +170,9 @@ export function useSpeech({ onLive, onDone }: Options) {
   }, [release]);
 
   const start = useCallback(async () => {
-    if (session.current) return;
+    // A second tap while the microphone is still opening must not open another one.
+    if (session.current || starting.current) return;
+    starting.current = true;
     setError(null);
     let stream: MediaStream;
     try {
@@ -177,6 +180,7 @@ export function useSpeech({ onLive, onDone }: Options) {
         audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
       });
     } catch {
+      starting.current = false;
       setError("No microphone access. Type your idea instead.");
       return;
     }
@@ -234,6 +238,8 @@ export function useSpeech({ onLive, onDone }: Options) {
     } catch {
       for (const track of stream.getTracks()) track.stop();
       setError("This browser cannot record. Type your idea instead.");
+    } finally {
+      starting.current = false;
     }
   }, [stop]);
 
