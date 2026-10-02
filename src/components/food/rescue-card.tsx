@@ -1,21 +1,28 @@
 "use client";
 
+// Mobbin reference: Sweatpals "You're in!" ticket confirmation (web), for the
+// card that pairs a photo with the event name, the place and one action.
+
 import { useRef, useState } from "react";
-import { Check, Loader2, MapPin } from "lucide-react";
-import { toast } from "sonner";
+import Link from "next/link";
+import { Loader2, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { claimPortion } from "@/lib/db";
-import type { Building, FoodRescue } from "@/lib/types";
-import { Countdown, formatClock } from "./countdown";
+import type { Building, CampusEvent, FoodRescue } from "@/lib/types";
+import { Countdown, formatClock, HoldTimer } from "./countdown";
+import { PickupCode } from "./pickup-code";
+import type { ClaimOutcome } from "./pickups";
+import type { Pickup } from "./use-claims";
 
 type RescueCardProps = {
   rescue: FoodRescue;
   building: Building | undefined;
+  event: CampusEvent | undefined; // the event this food is left over from
   now: number; // ms from the grid's shared clock
-  heldCount: number; // portions this browser already claimed
-  onClaimed: (rescue: FoodRescue, count?: number) => void;
+  holds: Pickup[]; // this student's open holds on this rescue
+  takenCount: number; // open holds plus confirmed pickups, counted against the limit
+  onClaim: (rescue: FoodRescue) => Promise<ClaimOutcome>;
 };
 
 // "Cesar Chavez Student Center, Rosa Parks A-C", or "Campus" with no building.
@@ -24,7 +31,15 @@ export function placeLabel(building: Building | undefined, room: string | null):
   return room ? `${name}, ${room}` : name;
 }
 
-export function RescueCard({ rescue, building, now, heldCount, onClaimed }: RescueCardProps) {
+export function RescueCard({
+  rescue,
+  building,
+  event,
+  now,
+  holds,
+  takenCount,
+  onClaim,
+}: RescueCardProps) {
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   // Set once the server says this rescue can no longer be claimed.
@@ -36,8 +51,8 @@ export function RescueCard({ rescue, building, now, heldCount, onClaimed }: Resc
   const safeTime = formatClock(rescue.safeUntil);
   const left = Math.max(0, Math.min(rescue.portionsLeft, rescue.portions));
   const percent = rescue.portions > 0 ? (left / rescue.portions) * 100 : 0;
-  const held = heldCount > 0;
-  const canClaimMore = heldCount < rescue.maxPerPerson && left > 0;
+  const atLimit = takenCount >= rescue.maxPerPerson;
+  const canClaim = !atLimit && left > 0;
 
   async function claim() {
     if (busy.current) return;
@@ -46,39 +61,9 @@ export function RescueCard({ rescue, building, now, heldCount, onClaimed }: Resc
     setMessage(null);
 
     try {
-      const result = await claimPortion(rescue.id);
-      if (result.ok) {
-        onClaimed(rescue);
-        toast.success("Portion held for you", {
-          description: `Pick it up at ${place} before ${safeTime}.`,
-        });
-        return;
-      }
-      switch (result.reason) {
-        case "already_claimed":
-          onClaimed(rescue, rescue.maxPerPerson);
-          toast.info("You already hold the most one student can take here");
-          break;
-        case "gone":
-          setClosed(true);
-          setMessage("All portions were just claimed.");
-          break;
-        case "expired":
-          setClosed(true);
-          setMessage("This food is past its safe-until time.");
-          break;
-        case "not_found":
-          setClosed(true);
-          setMessage("This post was removed.");
-          break;
-        case "not_signed_in":
-          setMessage("Still connecting you. Try again in a moment.");
-          break;
-        default:
-          setMessage("Could not claim. Check your connection and try again.");
-      }
-    } catch {
-      setMessage("Could not claim. Check your connection and try again.");
+      const outcome = await onClaim(rescue);
+      setMessage(outcome.message);
+      if (outcome.closed) setClosed(true);
     } finally {
       busy.current = false;
       setPending(false);
@@ -102,6 +87,17 @@ export function RescueCard({ rescue, building, now, heldCount, onClaimed }: Resc
           <h3 className="line-clamp-2 font-heading text-base leading-snug font-medium text-pretty break-words">
             {rescue.items}
           </h3>
+          {event && (
+            <p className="min-w-0 truncate text-muted-foreground">
+              From{" "}
+              <Link
+                href={`/events/${event.id}`}
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                {event.title}
+              </Link>
+            </p>
+          )}
           <p className="flex min-w-0 items-start gap-1.5 text-muted-foreground">
             <MapPin aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
             <span className="min-w-0 text-pretty break-words">{place}</span>
@@ -117,8 +113,8 @@ export function RescueCard({ rescue, building, now, heldCount, onClaimed }: Resc
           </p>
           <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-muted">
             <div
-              className="h-full rounded-full bg-accent transition-[width] duration-300 motion-reduce:transition-none"
-              style={{ width: `${percent}%` }}
+              className="h-full origin-left rounded-full bg-accent transition-transform duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none"
+              style={{ transform: `scaleX(${percent / 100})` }}
             />
           </div>
         </div>
@@ -139,33 +135,36 @@ export function RescueCard({ rescue, building, now, heldCount, onClaimed }: Resc
         </p>
 
         <p className="text-xs text-pretty text-muted-foreground">
-          Dietary tags are AI estimates. If you have an allergy, ask the organizer before eating.
+          Dietary tags are AI estimates. Allergy? Ask the organizer before eating.
         </p>
 
         <div className="mt-auto space-y-2">
           {rescue.maxPerPerson > 1 && (
             <p className="text-xs text-muted-foreground">
-              Up to {rescue.maxPerPerson} portions per student.
+              Up to {rescue.maxPerPerson} per student
             </p>
           )}
-          {held && (
-            <div className="flex items-start gap-2.5 rounded-lg border border-accent/40 bg-accent/15 p-3">
-              <Check aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-              <div className="min-w-0">
-                <p className="font-medium">
-                  {heldCount === 1 ? "Your portion is held" : `Your ${heldCount} portions are held`}
-                </p>
-                <p className="text-pretty break-words text-muted-foreground">
-                  Pick it up at {place} before {safeTime}.
-                </p>
-              </div>
-            </div>
+          {holds.length > 0 && (
+            <ul className="space-y-1.5">
+              {holds.map((hold) => (
+                <li
+                  key={hold.id}
+                  className="flex items-center justify-between gap-3 rounded-lg bg-accent/15 p-2 ring-1 ring-accent/60"
+                >
+                  <PickupCode code={hold.code} size="sm" />
+                  <p className="min-w-0 text-right text-xs">
+                    <span className="block text-muted-foreground">Your code</span>
+                    <HoldTimer until={hold.expiresAt} now={now} className="font-medium" />
+                  </p>
+                </li>
+              ))}
+            </ul>
           )}
-          {(!held || canClaimMore) && (
+          {canClaim ? (
             <Button
               type="button"
               size="lg"
-              className="h-10 w-full bg-accent text-accent-foreground hover:bg-accent/85"
+              className="h-10 w-full bg-accent text-accent-foreground hover:bg-accent/85 active:scale-[0.97]"
               disabled={pending || closed}
               onClick={claim}
             >
@@ -177,10 +176,18 @@ export function RescueCard({ rescue, building, now, heldCount, onClaimed }: Resc
                   />
                   Claiming…
                 </>
+              ) : takenCount > 0 ? (
+                "Claim another portion"
               ) : (
-                held ? "Claim another portion" : "Claim a portion"
+                "Claim a portion"
               )}
             </Button>
+          ) : (
+            holds.length === 0 && (
+              <p className="flex h-10 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                {atLimit ? "You reached the limit here" : "All portions are held"}
+              </p>
+            )
           )}
           {/* Always mounted so screen readers announce a message when it appears. */}
           <p
