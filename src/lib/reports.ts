@@ -89,6 +89,11 @@ function dayKey(iso: string): string {
   return dayKeyFormat.format(new Date(iso));
 }
 
+// Today on campus, for the printed date and the file name. The UTC date is a day ahead in the evening.
+export function reportDate(now: number = Date.now()): string {
+  return dayKeyFormat.format(new Date(now));
+}
+
 function stamp(iso: string): string {
   return `${dayKey(iso)} ${clockFormat.format(new Date(iso))}`;
 }

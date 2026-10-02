@@ -15,7 +15,9 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { aiStats, buildAnalytics, schoolReportCsv } from "@/lib/analytics";
+import { errorMessage } from "@/components/post/form-utils";
 import { postJson } from "@/lib/api";
+import { reportDate } from "@/lib/reports";
 import {
   listHostAttendance,
   listMyClubs,
@@ -154,9 +156,7 @@ export function AnalyticsDashboard() {
       setInsights(result);
       setInsightsFor(scopeKey);
     } catch (insightError) {
-      setInsightsError(
-        insightError instanceof Error ? insightError.message : "Could not write insights.",
-      );
+      setInsightsError(errorMessage(insightError, "Could not write insights. Try again in a moment."));
     } finally {
       setThinking(false);
     }
@@ -167,21 +167,21 @@ export function AnalyticsDashboard() {
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = `gator-radar-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `gator-radar-report-${reportDate()}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   }
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-6xl space-y-4 px-6 py-8" aria-busy="true">
-        <Skeleton className="h-8 w-48" />
+      <div className="mx-auto max-w-6xl space-y-4 px-4 py-8 sm:px-6" aria-busy="true">
+        <Skeleton className="h-8 w-48 motion-reduce:animate-none" />
         <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {Array.from({ length: 6 }, (_, index) => (
-            <Skeleton key={index} className="h-24" />
+            <Skeleton key={index} className="h-24 motion-reduce:animate-none" />
           ))}
         </div>
-        <Skeleton className="h-72" />
+        <Skeleton className="h-72 motion-reduce:animate-none" />
       </div>
     );
   }
@@ -209,7 +209,7 @@ export function AnalyticsDashboard() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 px-6 py-8">
+    <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="mr-auto text-2xl font-semibold tracking-tight">Analytics</h1>
 
@@ -277,7 +277,11 @@ export function AnalyticsDashboard() {
         <Stat
           label="Cost per attendee"
           value={t.costPerAttendee === null ? "n/a" : `$${t.costPerAttendee.toFixed(2)}`}
-          hint={t.totalCost > 0 ? `$${t.totalCost.toFixed(0)} spent` : "add event costs"}
+          hint={
+            t.totalCost > 0
+              ? `$${t.totalCost.toFixed(Number.isInteger(t.totalCost) ? 0 : 2)} spent`
+              : "add event costs"
+          }
         />
       </div>
 
@@ -308,7 +312,11 @@ export function AnalyticsDashboard() {
           </div>
 
           <div aria-live="polite" className="empty:hidden">
-            {insightsError && <p className="text-sm text-destructive">{insightsError}</p>}
+            {insightsError && (
+              <p role="alert" className="text-sm text-pretty break-words text-destructive">
+                {insightsError}
+              </p>
+            )}
             {noCheckIns && !shownInsights && (
               <p className="text-sm text-muted-foreground">
                 Insights need at least one check-in to work from.

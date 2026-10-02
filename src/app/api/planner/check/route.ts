@@ -35,7 +35,12 @@ export async function POST(request: Request) {
       events,
       past,
       buildingNames: new Map(buildings.map((building) => [building.id, building.name])),
-      target: { clubId: body.clubId ?? null, tags, hasFood: Boolean(body.hasFood) },
+      target: {
+        clubId: body.clubId ?? null,
+        tags,
+        hasFood: Boolean(body.hasFood),
+        hostEstimate: typeof body.expectedPeople === "number" ? body.expectedPeople : null,
+      },
       audience,
       now,
       buildingId: body.buildingId,

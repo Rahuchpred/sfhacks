@@ -37,6 +37,8 @@ async function fetchRescues(eventId: string): Promise<FoodRescue[]> {
 function FoodDeskBody({ event, version }: { event: CampusEvent; version: number }) {
   const now = useNow(1000);
   const [buildings, setBuildings] = useState<Building[]>([]);
+  // False until the building list has answered, so the place never reads "Campus" first.
+  const [placeReady, setPlaceReady] = useState(false);
   const [state, setState] = useState<RescuesState>({ status: "loading", rescues: [] });
   const [posting, setPosting] = useState(false);
   const [polls, setPolls] = useState(0);
@@ -52,6 +54,9 @@ function FoodDeskBody({ event, version }: { event: CampusEvent; version: number 
       })
       .catch(() => {
         // The page still works without building names; the place reads "Campus".
+      })
+      .finally(() => {
+        if (!cancelled) setPlaceReady(true);
       });
     return () => {
       cancelled = true;
@@ -112,7 +117,7 @@ function FoodDeskBody({ event, version }: { event: CampusEvent; version: number 
           <ArrowLeft aria-hidden className="size-4" />
           Manage event
         </Link>
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-h-11 flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold tracking-tight text-balance">Leftover food</h1>
           {!posting && rescues.length > 0 && (
             <Button
@@ -128,7 +133,14 @@ function FoodDeskBody({ event, version }: { event: CampusEvent; version: number 
         {!posting && (
           <p className="flex items-start gap-1.5 text-sm text-muted-foreground">
             <MapPin aria-hidden className="mt-0.5 size-4 shrink-0" />
-            <span className="min-w-0 break-words">{place}</span>
+            {placeReady ? (
+              <span className="min-w-0 break-words">{place}</span>
+            ) : (
+              <span
+                aria-hidden="true"
+                className="h-5 w-40 animate-pulse rounded-md bg-muted motion-reduce:animate-none"
+              />
+            )}
           </p>
         )}
       </header>

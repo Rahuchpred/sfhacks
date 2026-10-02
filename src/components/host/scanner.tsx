@@ -42,7 +42,7 @@ const UNSUPPORTED = "This browser cannot use the camera here. Type the code belo
 function errorMessage(kind: IScannerError["kind"]): string {
   switch (kind) {
     case "permission-denied":
-      return "Camera access is blocked. Allow the camera for this site in your browser settings, then press Start scanning. You can also type the code below.";
+      return "Camera access is blocked. Allow the camera for this site in your browser settings, then press Try again. You can also type the code below.";
     case "no-camera":
     case "overconstrained":
       return "No camera found on this device. Type the code below.";

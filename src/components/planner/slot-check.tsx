@@ -47,6 +47,8 @@ export function SlotCheck({ request, onApply, className }: SlotCheckProps) {
   if (!key || !request || !checked) return null;
   const { forecast, clashes, betterSlots } = checked.data;
   const stale = checked.key !== key;
+  // While a new check is on its way the old chips keep the labels they had.
+  const basis = stale ? (JSON.parse(checked.key) as PlannerCheckRequest) : request;
   const row = "flex items-start gap-2 text-sm";
   const icon = "mt-0.5 size-4 shrink-0 text-muted-foreground";
 
@@ -95,8 +97,8 @@ export function SlotCheck({ request, onApply, className }: SlotCheckProps) {
           <span className="shrink-0 text-muted-foreground">Better</span>
           <ul className="flex min-w-0 flex-wrap gap-1.5">
             {betterSlots.map((slot) => {
-              const sameDay = dayLabel(slot.startsAt) === dayLabel(request.startsAt);
-              const moved = slot.buildingId !== request.buildingId;
+              const sameDay = dayLabel(slot.startsAt) === dayLabel(basis.startsAt);
+              const moved = slot.buildingId !== basis.buildingId;
               return (
                 <li key={`${slot.buildingId}|${slot.room}|${slot.startsAt}`}>
                   <button

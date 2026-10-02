@@ -78,7 +78,7 @@ function GuestRow({
           </Badge>
         )}
       </div>
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1 pl-9.5 sm:flex-none sm:pl-0">
+      <div className="flex min-h-9 min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1 pl-9.5 sm:flex-none sm:pl-0">
         <time
           dateTime={guest.createdAt}
           title={`Registered ${formatStamp(guest.createdAt)}`}
@@ -91,7 +91,7 @@ function GuestRow({
         ) : (
           <Button
             size="lg"
-            className="ml-auto h-9 px-3"
+            className="ml-auto h-9 min-w-26 px-3"
             disabled={disabled}
             aria-label={`Check in ${name}`}
             onClick={onCheckIn}

@@ -11,6 +11,8 @@ export type EventPrefill = {
   room: string;
   startsAt: string;
   endsAt: string;
+  // The host's own head count from the idea, so the form's forecast matches the planner's.
+  expectedPeople?: number | null;
 };
 
 const KEY = "gator-radar:plan-prefill";

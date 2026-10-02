@@ -43,8 +43,9 @@ export function Planner({ onUse }: { onUse: (prefill: EventPrefill) => void }) {
   const [planning, setPlanning] = useState(false);
   const [plan, setPlan] = useState<PlanEventResponse | null>(null);
   const [planError, setPlanError] = useState<string | null>(null);
-  // The text the current plan was made from.
+  // The text and the club the current plan was made from.
   const [plannedText, setPlannedText] = useState<string | null>(null);
+  const [plannedClub, setPlannedClub] = useState<string | null>(null);
   const planId = useRef(0);
 
   const [used, setUsed] = useState<number | null>(null);
@@ -70,6 +71,7 @@ export function Planner({ onUse }: { onUse: (prefill: EventPrefill) => void }) {
     setPlanning(true);
     setPlanError(null);
     setPlannedText(transcript);
+    setPlannedClub(clubId);
     try {
       const result = await planEvent({ transcript, clubId: clubId ?? undefined });
       if (id !== planId.current) return;
@@ -77,7 +79,7 @@ export function Planner({ onUse }: { onUse: (prefill: EventPrefill) => void }) {
       setUsed(null);
     } catch (error) {
       if (id !== planId.current) return;
-      setPlanError(errorMessage(error, "Could not plan that."));
+      setPlanError(errorMessage(error, "Could not plan that. Try again in a moment."));
     } finally {
       if (id === planId.current) setPlanning(false);
     }
@@ -113,7 +115,12 @@ export function Planner({ onUse }: { onUse: (prefill: EventPrefill) => void }) {
   const listening = speech.status === "listening";
   const hearing = speech.status !== "idle";
   const trimmed = text.trim();
-  const canPlan = !hearing && !planning && trimmed.length >= MIN_LENGTH && trimmed !== plannedText;
+  const canPlan =
+    !hearing &&
+    !planning &&
+    trimmed.length >= MIN_LENGTH &&
+    // The same idea can be planned again for another club: its crowd and history differ.
+    (trimmed !== plannedText || clubId !== plannedClub);
 
   function submit(event?: React.FormEvent) {
     event?.preventDefault();
@@ -134,6 +141,7 @@ export function Planner({ onUse }: { onUse: (prefill: EventPrefill) => void }) {
       room: option.room,
       startsAt: option.startsAt,
       endsAt: option.endsAt,
+      expectedPeople: plan.idea.expectedPeople,
     });
     setUsed(index);
   }
@@ -267,13 +275,13 @@ export function Planner({ onUse }: { onUse: (prefill: EventPrefill) => void }) {
         {planning ? (
           <div className="flex flex-col gap-6" role="status" aria-label="Planning">
             <div className="grid gap-3 md:grid-cols-2">
-              <Skeleton className="h-32 rounded-xl" />
-              <Skeleton className="h-32 rounded-xl" />
+              <Skeleton className="h-32 rounded-xl motion-reduce:animate-none" />
+              <Skeleton className="h-32 rounded-xl motion-reduce:animate-none" />
             </div>
             <div className="grid gap-3 md:grid-cols-3">
-              <Skeleton className="h-64 rounded-xl" />
-              <Skeleton className="h-64 rounded-xl" />
-              <Skeleton className="h-64 rounded-xl" />
+              <Skeleton className="h-64 rounded-xl motion-reduce:animate-none" />
+              <Skeleton className="h-64 rounded-xl motion-reduce:animate-none" />
+              <Skeleton className="h-64 rounded-xl motion-reduce:animate-none" />
             </div>
           </div>
         ) : planError ? (
@@ -281,7 +289,9 @@ export function Planner({ onUse }: { onUse: (prefill: EventPrefill) => void }) {
             role="alert"
             className="mx-auto flex max-w-2xl flex-col items-center gap-3 rounded-xl border border-dashed p-6 text-center"
           >
-            <p className="text-sm font-medium text-destructive">{planError}</p>
+            <p className="max-w-full text-sm font-medium text-pretty break-words text-destructive">
+              {planError}
+            </p>
             <Button variant="outline" size="lg" onClick={() => makePlan(trimmed)}>
               Try again
             </Button>

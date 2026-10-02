@@ -66,7 +66,7 @@ function GuestRow({
           disabled={disabled}
           aria-label={`Check in ${name}`}
           onClick={onCheckIn}
-          className="h-11 shrink-0 touch-manipulation px-4 text-base"
+          className="h-11 min-w-32 shrink-0 touch-manipulation px-4 text-base"
         >
           {pending && (
             <LoaderCircle aria-hidden className="size-5 animate-spin motion-reduce:animate-none" />

@@ -26,6 +26,7 @@ import {
   buildReport,
   checkInsTable,
   eventsTable,
+  reportDate,
   reportPrintHtml,
   toCsv,
   toTsv,
@@ -155,7 +156,7 @@ export function ReportView() {
         : (clubs.find((club) => club.id === clubFilter)?.name ?? "");
   const table = tab === "events" ? eventsTable(report) : checkInsTable(report);
   const nothingToExport = table.rows.length === 0;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = reportDate();
 
   async function copyForSheets() {
     const text = toTsv(table);
@@ -212,9 +213,9 @@ export function ReportView() {
   if (loading) {
     return (
       <div className="mx-auto max-w-6xl space-y-5 px-4 py-8 sm:px-6" aria-busy="true">
-        <Skeleton className="h-8 w-40" />
-        <Skeleton className="h-14" />
-        <Skeleton className="h-80" />
+        <Skeleton className="h-8 w-40 motion-reduce:animate-none" />
+        <Skeleton className="h-14 motion-reduce:animate-none" />
+        <Skeleton className="h-80 motion-reduce:animate-none" />
       </div>
     );
   }
@@ -288,7 +289,15 @@ export function ReportView() {
 
           <Button className="h-9" onClick={copyForSheets} disabled={nothingToExport}>
             {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
-            <span aria-live="polite">{copied ? "Copied" : "Copy for Google Sheets"}</span>
+            {/* Both labels share one grid cell, so the button keeps its width when it says "Copied". */}
+            <span aria-live="polite" className="grid text-left">
+              <span className={cn("col-start-1 row-start-1", !copied && "invisible")} aria-hidden={!copied}>
+                Copied
+              </span>
+              <span className={cn("col-start-1 row-start-1", copied && "invisible")} aria-hidden={copied}>
+                Copy for Google Sheets
+              </span>
+            </span>
           </Button>
           <Button variant="outline" className="h-9" onClick={downloadCsv} disabled={nothingToExport}>
             <Download aria-hidden />
