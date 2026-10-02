@@ -11,6 +11,7 @@ import { formatTime, formatTimeRange, placeLabel } from "@/components/map/map-ut
 import { cn } from "@/lib/utils";
 import type { Building, TicketWithEvent } from "@/lib/types";
 import { TicketQr } from "./ticket-qr";
+import { EventAnnouncements } from "@/components/messages/event-announcements";
 
 type TicketCardProps = {
   ticket: TicketWithEvent;
@@ -121,6 +122,11 @@ export function TicketCard({ ticket, building, now, past, cancelling, onCancel }
           {/* Phone: 256px, so a door scanner reads it at arm's length. Desktop: fits the stub. */}
           <TicketQr code={ticket.code} size={256} className="sm:hidden" />
           <TicketQr code={ticket.code} size={192} className="hidden sm:flex" />
+        </div>
+      )}
+      {ticket && (
+        <div className="px-4 pb-4">
+          <EventAnnouncements eventId={event.id} limit={1} />
         </div>
       )}
     </Card>

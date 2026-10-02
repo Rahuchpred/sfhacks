@@ -29,6 +29,7 @@ import { GuestList } from "./guest-list";
 import { HostGate } from "./host-states";
 import { eventPhase, formatEventTime, placeLabel, turnoutRate, type EventPhase } from "./host-utils";
 import { useHostEvent } from "./use-host-event";
+import { AnnounceButton } from "@/components/messages/announce-button";
 
 const countFormat = new Intl.NumberFormat();
 
@@ -238,6 +239,8 @@ function ManageEvent({
               </ul>
             </div>
           </section>
+
+          {canManage && <AnnounceButton eventId={event.id} />}
 
           <div className={cn("grid gap-3", canManage && "sm:grid-cols-3")}>
             <Link href={`/host/${event.id}/check-in`} className={TILE}>

@@ -25,6 +25,8 @@ import { EventCover } from "./event-cover";
 import { WhenLine } from "./event-tile";
 import { downloadIcs } from "./ics";
 import { RegistrationCard } from "./registration-card";
+import { AskHostButton } from "@/components/messages/ask-host-button";
+import { EventAnnouncements } from "@/components/messages/event-announcements";
 
 type LoadState =
   | { status: "loading" }
@@ -395,6 +397,9 @@ export function EventView({ id }: { id: string }) {
             going={event.rsvpCount}
             onTicketChange={onTicketChange}
           />
+
+          <EventAnnouncements key={ticket?.id ?? "none"} eventId={event.id} />
+          <AskHostButton eventId={event.id} />
 
           <div className="flex flex-wrap gap-2">
             {!ended && (

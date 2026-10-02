@@ -9,6 +9,7 @@ import {
   CircleUser,
   ClipboardCheck,
   ClipboardList,
+  MessagesSquare,
   FileSpreadsheet,
   HandHelping,
   LayoutDashboard,
@@ -39,6 +40,7 @@ import {
   SidebarInset,
   SidebarMenu,
   SidebarMenuAction,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
@@ -50,6 +52,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { listMyClubs } from "@/lib/db";
 import { canOrganize, canVisit, pathAccess, roleHome, welcomeHref } from "@/lib/roles";
 import type { Role } from "@/lib/types";
+import { useUnreadCount } from "@/components/messages/use-inbox";
 
 // Mobbin reference: Square dashboard sidebar (grouped sections with small
 // labels, icon and label rows, account at the bottom).
@@ -71,6 +74,7 @@ const EXPLORE: NavGroup = {
 const STUDENT: NavGroup = {
   label: "Student",
   items: [
+    { href: "/messages", label: "Messages", icon: MessagesSquare },
     { href: "/tickets", label: "My tickets", icon: Ticket },
     { href: "/help", label: "Help board", icon: HandHelping, exact: true },
   ],
@@ -79,6 +83,7 @@ const STUDENT: NavGroup = {
 const FACULTY: NavGroup = {
   label: "Faculty and staff",
   items: [
+    { href: "/messages", label: "Messages", icon: MessagesSquare },
     { href: "/help/new", label: "Ask for help", icon: MessageSquarePlus },
     { href: "/help/mine", label: "My requests", icon: ClipboardList },
     { href: "/faculty/attendance", label: "Event attendance", icon: ClipboardCheck },
@@ -197,6 +202,7 @@ function isActive(pathname: string, item: NavItem): boolean {
 // Titles for pages that are not sidebar rows, or that sit under one.
 const TITLES: [RegExp, string][] = [
   [/^\/profile/, "Profile"],
+  [/^\/messages/, "Messages"],
   [/^\/events\//, "Event"],
   [/^\/clubs\/[^/]+/, "Club"],
   [/^\/host\/[^/]+\/check-in/, "Check in"],
@@ -220,6 +226,7 @@ const ACTIVE_ROW_CLASS =
 
 function NavLinks({ groups }: { groups: NavGroup[] }) {
   const pathname = usePathname();
+  const unread = useUnreadCount();
   const { setOpenMobile } = useSidebar();
 
   return (
@@ -245,6 +252,11 @@ function NavLinks({ groups }: { groups: NavGroup[] }) {
                     <item.icon aria-hidden className="size-[1.125rem]!" />
                     <span className={LABEL_CLASS}>{item.label}</span>
                   </SidebarMenuButton>
+                  {item.href === "/messages" && unread > 0 && (
+                    <SidebarMenuBadge className="bg-primary text-primary-foreground">
+                      {unread}
+                    </SidebarMenuBadge>
+                  )}
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
