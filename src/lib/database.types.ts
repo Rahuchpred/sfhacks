@@ -95,6 +95,7 @@ export type Database = {
       events: {
         Row: {
           building_id: string
+          checked_in_count: number
           club_name: string
           created_at: string
           created_by: string | null
@@ -104,6 +105,7 @@ export type Database = {
           has_food: boolean
           id: string
           room: string | null
+          rsvp_count: number
           source: string
           starts_at: string
           tags: string[]
@@ -111,6 +113,7 @@ export type Database = {
         }
         Insert: {
           building_id: string
+          checked_in_count?: number
           club_name?: string
           created_at?: string
           created_by?: string | null
@@ -120,6 +123,7 @@ export type Database = {
           has_food?: boolean
           id?: string
           room?: string | null
+          rsvp_count?: number
           source?: string
           starts_at: string
           tags?: string[]
@@ -127,6 +131,7 @@ export type Database = {
         }
         Update: {
           building_id?: string
+          checked_in_count?: number
           club_name?: string
           created_at?: string
           created_by?: string | null
@@ -136,6 +141,7 @@ export type Database = {
           has_food?: boolean
           id?: string
           room?: string | null
+          rsvp_count?: number
           source?: string
           starts_at?: string
           tags?: string[]
@@ -217,11 +223,105 @@ export type Database = {
           },
         ]
       }
+      profiles: {
+        Row: {
+          ai_summary: string | null
+          bio: string
+          email: string | null
+          full_name: string
+          github_url: string | null
+          grad_year: number | null
+          id: string
+          linkedin_url: string | null
+          major: string
+          recruiter_visible: boolean
+          resume_url: string | null
+          sfsu_verified: boolean
+          updated_at: string
+        }
+        Insert: {
+          ai_summary?: string | null
+          bio?: string
+          email?: string | null
+          full_name?: string
+          github_url?: string | null
+          grad_year?: number | null
+          id: string
+          linkedin_url?: string | null
+          major?: string
+          recruiter_visible?: boolean
+          resume_url?: string | null
+          sfsu_verified?: boolean
+          updated_at?: string
+        }
+        Update: {
+          ai_summary?: string | null
+          bio?: string
+          email?: string | null
+          full_name?: string
+          github_url?: string | null
+          grad_year?: number | null
+          id?: string
+          linkedin_url?: string | null
+          major?: string
+          recruiter_visible?: boolean
+          resume_url?: string | null
+          sfsu_verified?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      rsvps: {
+        Row: {
+          checked_in_at: string | null
+          code: string
+          created_at: string
+          event_id: string
+          id: string
+          uid: string
+        }
+        Insert: {
+          checked_in_at?: string | null
+          code?: string
+          created_at?: string
+          event_id: string
+          id?: string
+          uid: string
+        }
+        Update: {
+          checked_in_at?: string | null
+          code?: string
+          created_at?: string
+          event_id?: string
+          id?: string
+          uid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rsvps_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      cancel_rsvp: { Args: { p_event_id: string }; Returns: boolean }
+      check_in: {
+        Args: { p_code: string }
+        Returns: {
+          checked_in_at: string
+          event_id: string
+          guest_name: string
+          ok: boolean
+          reason: string
+        }[]
+      }
       claim_portion: {
         Args: { p_rescue_id: string }
         Returns: {
@@ -229,6 +329,33 @@ export type Database = {
           portions_left: number
           reason: string
         }[]
+      }
+      event_guests: {
+        Args: { p_event_id: string }
+        Returns: {
+          checked_in_at: string
+          created_at: string
+          guest_name: string
+          rsvp_id: string
+          sfsu_verified: boolean
+        }[]
+      }
+      rsvp_event: {
+        Args: { p_event_id: string }
+        Returns: {
+          checked_in_at: string | null
+          code: string
+          created_at: string
+          event_id: string
+          id: string
+          uid: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "rsvps"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
     }
     Enums: {

@@ -24,6 +24,8 @@ export type CampusEvent = {
   flyerUrl: string | null;
   source: EventSource;
   createdBy: string | null;
+  rsvpCount: number;
+  checkedInCount: number;
 };
 
 export type RescueStatus = "open" | "gone" | "expired";
@@ -44,7 +46,11 @@ export type FoodRescue = {
   createdBy: string | null;
 };
 
-export type NewCampusEvent = Omit<CampusEvent, "id" | "createdBy">;
+export type NewCampusEvent = Omit<
+  CampusEvent,
+  "id" | "createdBy" | "rsvpCount" | "checkedInCount"
+>;
+export type EventUpdate = Partial<NewCampusEvent>;
 export type NewFoodRescue = Omit<
   FoodRescue,
   "id" | "createdBy" | "portionsLeft" | "status"
@@ -55,6 +61,66 @@ export type ClaimResult = {
   portionsLeft: number;
   reason: "not_signed_in" | "not_found" | "gone" | "expired" | "already_claimed" | null;
 };
+
+// RSVPs, tickets and check-in
+
+export type Ticket = {
+  id: string;
+  eventId: string;
+  code: string; // 8 characters, shown as the QR code and typed by hand as a fallback
+  createdAt: string;
+  checkedInAt: string | null;
+};
+
+export type TicketWithEvent = Ticket & { event: CampusEvent };
+
+export type CheckInResult = {
+  ok: boolean;
+  reason: "not_found" | "not_host" | "already_checked_in" | null;
+  guestName: string | null;
+  eventId: string | null;
+  checkedInAt: string | null;
+};
+
+export type Guest = {
+  rsvpId: string;
+  name: string;
+  sfsuVerified: boolean;
+  createdAt: string;
+  checkedInAt: string | null;
+};
+
+// Profiles
+
+export type Profile = {
+  id: string;
+  fullName: string;
+  email: string | null; // from the signed-in account, read only
+  sfsuVerified: boolean; // true when the account email is @sfsu.edu, read only
+  major: string;
+  gradYear: number | null;
+  bio: string;
+  linkedinUrl: string | null;
+  githubUrl: string | null;
+  resumeUrl: string | null;
+  aiSummary: string | null;
+  recruiterVisible: boolean; // the student's opt-in, off by default
+};
+
+export type ProfileUpdate = Partial<
+  Pick<
+    Profile,
+    | "fullName"
+    | "major"
+    | "gradYear"
+    | "bio"
+    | "linkedinUrl"
+    | "githubUrl"
+    | "resumeUrl"
+    | "aiSummary"
+    | "recruiterVisible"
+  >
+>;
 
 // AI route contracts
 

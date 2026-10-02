@@ -22,6 +22,14 @@ The single source of truth for data shapes. Frozen: change these only in the mai
 - `listMyClaims()`: rescue ids the signed-in user has claimed. An id repeats once per portion held
 - `FoodRescue.maxPerPerson` (1 to 10): set by the poster in the food form, default 1
 - `uploadImage(file)`: returns a public URL
+
+Round 2 additions:
+
+- Events: `getEvent(id)`, `listMyHostedEvents()`, `updateEvent(id, changes)`, `deleteEvent(id)`. `CampusEvent.rsvpCount` and `checkedInCount` are live counters
+- Tickets: `rsvpEvent(eventId)` (safe to call twice, returns the same ticket), `cancelRsvp(eventId)`, `getMyTicket(eventId)`, `listMyTickets()`. `Ticket.code` is 8 characters and is what the QR code encodes
+- Door: `checkIn(code)` returns `{ ok, reason, guestName, eventId, checkedInAt }`, reasons `not_found`, `not_host`, `already_checked_in`. `listGuests(eventId)`. Both work only for the user who created the event
+- Profiles: `getMyProfile()` (null until first save), `saveMyProfile(changes)`, `listRecruiterVisibleProfiles()`. `email` and `sfsuVerified` are set by the database from the signed-in account and cannot be written by the client. `recruiterVisible` is the student's opt-in, off by default, enforced by row level security
+- Libraries: `qrcode.react` to draw a QR code, `@yudiel/react-qr-scanner` to scan one
 - `useCampus()` in `src/lib/use-campus.ts`: live buildings, events and rescues for any client component
 
 ## AI routes
@@ -52,9 +60,4 @@ How the AI and code split the work:
 
 ## Folder ownership
 
-| Folder | Owner |
-|---|---|
-| `src/app/map`, `src/components/map` | Thread A: student map |
-| `src/app/api/ai`, `src/lib/ai.ts`, `src/lib/prompts`, `src/lib/ai-schemas.ts`, `src/lib/fixtures` | Thread B: AI |
-| `src/app/food`, `src/app/post`, `src/components/food`, `src/components/post` | Thread C: food rescue and organizer |
-| `src/lib/types.ts`, `src/lib/db.ts`, `supabase/migrations`, `src/components/ui`, `src/components/app-shell.tsx`, `globals.css`, `layout.tsx` | Frozen |
+See `docs/plans/10-round2-overview.md` for the current split (Student, Host, Main) and the list of frozen files.
