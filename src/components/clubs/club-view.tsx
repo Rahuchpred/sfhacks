@@ -10,7 +10,7 @@ import { ArrowLeft, CalendarDays, SearchX, Utensils } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getClub, listBuildings, listClubEvents } from "@/lib/db";
+import { getClub, listBuildings, listClubEvents, listMyClubs } from "@/lib/db";
 import type { Building, CampusEvent } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
@@ -21,6 +21,7 @@ import {
 } from "@/components/map/map-utils";
 import { useNow } from "@/components/map/use-event-filters";
 import { ClubAvatar, LiveBadge } from "./club-avatar";
+import { LevelBadge } from "./club-level";
 import { ClubError, ClubMessage, useLoad } from "./club-states";
 import {
   clubTotals,
@@ -32,13 +33,20 @@ import {
 } from "./club-utils";
 
 export function ClubView({ id }: { id: string }) {
-  // The club, its events and the building names. Nothing about organizers.
+  // The club, its events and the building names. The visitor's own level decides
+  // whether the page says anything about running the club: a student who is not
+  // in it sees no badge and no management link.
   const load = useCallback(async () => {
     if (!isClubId(id)) return null;
     const club = await getClub(id);
     if (!club) return null;
-    const [events, buildings] = await Promise.all([listClubEvents(id), listBuildings()]);
-    return { club, events, buildings };
+    const [events, buildings, mine] = await Promise.all([
+      listClubEvents(id),
+      listBuildings(),
+      listMyClubs().catch(() => []),
+    ]);
+    const level = mine.find((entry) => entry.id === id)?.role ?? null;
+    return { club, events, buildings, level };
   }, [id]);
 
   const { status, data, error, reload } = useLoad(load);
@@ -73,7 +81,7 @@ export function ClubView({ id }: { id: string }) {
     );
   }
 
-  const { club, events } = data;
+  const { club, events, level } = data;
   const { upcoming, past } = splitEvents(events, now);
   const totals = clubTotals(events, now);
   const live = upcoming.some((event) => isHappeningNow(event, now));
@@ -84,10 +92,13 @@ export function ClubView({ id }: { id: string }) {
 
       <header className="mt-4 flex items-center gap-4">
         <ClubAvatar club={club} size="lg" />
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight text-balance break-words">
-            {club.name}
-          </h1>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <h1 className="min-w-0 text-2xl font-semibold tracking-tight text-balance break-words">
+              {club.name}
+            </h1>
+            {level && <LevelBadge level={level} />}
+          </div>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             {live && <LiveBadge />}
             <span className="tabular-nums">
@@ -95,6 +106,14 @@ export function ClubView({ id }: { id: string }) {
             </span>
           </div>
         </div>
+        {level && (
+          <Link
+            href="/host"
+            className={cn(buttonVariants({ variant: "outline" }), "h-9 shrink-0 px-3")}
+          >
+            Dashboard
+          </Link>
+        )}
       </header>
 
       <dl className="mt-6 grid grid-cols-3 gap-3">

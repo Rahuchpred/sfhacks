@@ -1,4 +1,5 @@
 // The only place that talks to Supabase tables. Maps snake_case rows to app types.
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase, UPLOADS_BUCKET } from "@/lib/supabase/client";
 import type { Database } from "@/lib/database.types";
 import type {
@@ -15,6 +16,7 @@ import type {
   CheckInResult,
   ClaimResult,
   Club,
+  ClubLevel,
   ClubMember,
   MyClaim,
   MyClub,
@@ -297,7 +299,8 @@ export async function listClubEvents(clubId: string): Promise<CampusEvent[]> {
   return data.map(toEvent);
 }
 
-// Clubs the signed-in user organizes, with the join code to invite others.
+// Clubs the signed-in user is in, at any level. The join code comes back only
+// for the owner and organizers.
 export async function listMyClubs(): Promise<MyClub[]> {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return [];
@@ -329,6 +332,30 @@ export async function listClubMembers(clubId: string): Promise<ClubMember[]> {
   }));
 }
 
+// Owner only: makes another person in the club an organizer or a member.
+export async function setClubMemberLevel(
+  clubId: string,
+  uid: string,
+  level: Exclude<ClubLevel, "owner">,
+): Promise<void> {
+  // Newer than database.types.ts.
+  const { error } = await (supabase as unknown as SupabaseClient).rpc("set_club_member_level", {
+    p_club_id: clubId,
+    p_uid: uid,
+    p_role: level,
+  });
+  if (error) throw error;
+}
+
+// Owner only: removes another person from the club.
+export async function removeClubMember(clubId: string, uid: string): Promise<void> {
+  const { error } = await (supabase as unknown as SupabaseClient).rpc("remove_club_member", {
+    p_club_id: clubId,
+    p_uid: uid,
+  });
+  if (error) throw error;
+}
+
 // Events: single event, hosting, editing
 
 export async function getEvent(id: string): Promise<CampusEvent | null> {
@@ -337,20 +364,27 @@ export async function getEvent(id: string): Promise<CampusEvent | null> {
   return data ? toEvent(data) : null;
 }
 
-// Events the signed-in user manages: their own and their clubs', newest first, past included.
-export async function listMyHostedEvents(): Promise<CampusEvent[]> {
+// The signed-in user's events, newest first, past included: the ones they posted
+// with no club, and the events of their clubs. "staff" (the default) covers every
+// club they are in, for the door and leftover food. "manage" keeps only the clubs
+// where they are the owner or an organizer, for editing and data.
+export async function listMyHostedEvents(scope: "staff" | "manage" = "staff"): Promise<CampusEvent[]> {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return [];
   const { data: memberships } = await supabase
     .from("club_members")
-    .select("club_id")
+    .select("club_id, role")
     .eq("uid", auth.user.id);
-  const clubIds = (memberships ?? []).map((row) => row.club_id);
-  const owner = `created_by.eq.${auth.user.id}`;
+  const clubIds = (memberships ?? [])
+    .filter((row) => scope === "staff" || row.role !== "member")
+    .map((row) => row.club_id);
+  // A club event belongs to the club, so an event posted for a club the user has
+  // left is no longer theirs.
+  const solo = `and(created_by.eq.${auth.user.id},club_id.is.null)`;
   const { data, error } = await supabase
     .from("events")
     .select("*")
-    .or(clubIds.length ? `${owner},club_id.in.(${clubIds.join(",")})` : owner)
+    .or(clubIds.length ? `${solo},club_id.in.(${clubIds.join(",")})` : solo)
     .order("starts_at", { ascending: false });
   if (error) throw error;
   return data.map(toEvent);
@@ -438,7 +472,7 @@ export async function listMyTickets(): Promise<TicketWithEvent[]> {
     .sort((a, b) => a.event.startsAt.localeCompare(b.event.startsAt));
 }
 
-// Host only: checks a guest in by ticket code (scanned or typed).
+// Event staff only (club members included): checks a guest in by ticket code (scanned or typed).
 export async function checkIn(code: string): Promise<CheckInResult> {
   const { data, error } = await supabase.rpc("check_in", { p_code: code }).single();
   if (error) throw error;
@@ -451,7 +485,7 @@ export async function checkIn(code: string): Promise<CheckInResult> {
   };
 }
 
-// Organizers only: checks in a guest from the guest list, for a student with no ticket to show.
+// Event staff only: checks in a guest from the guest list, for a student with no ticket to show.
 export async function checkInGuest(rsvpId: string): Promise<CheckInResult> {
   const { data, error } = await supabase.rpc("check_in_guest", { p_rsvp_id: rsvpId }).single();
   if (error) throw error;
@@ -465,6 +499,7 @@ export async function checkInGuest(rsvpId: string): Promise<CheckInResult> {
 }
 
 // Every registration across the events the signed-in user manages. Raw rows for analytics.
+// Empty for a club member: the database returns rows to owners and organizers only.
 export async function listHostAttendance(): Promise<AttendanceRow[]> {
   const { data, error } = await supabase.rpc("host_attendance");
   if (error) throw error;
@@ -481,7 +516,7 @@ export async function listHostAttendance(): Promise<AttendanceRow[]> {
   }));
 }
 
-// Organizers only: returns an empty list for anyone who cannot manage the event.
+// Event staff only: returns an empty list for anyone who does not work at the event.
 export async function listGuests(eventId: string): Promise<Guest[]> {
   const { data, error } = await supabase.rpc("event_guests", { p_event_id: eventId });
   if (error) throw error;

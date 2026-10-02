@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { BadgeCheck, Download, Loader2, Sparkles } from "lucide-react";
+import { BadgeCheck, Download, Loader2, Search, Sparkles } from "lucide-react";
+import { useUser } from "@/components/auth-provider";
+import { OrganizersOnly } from "@/components/clubs/club-level";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,11 +15,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { aiStats, buildAnalytics, schoolReportCsv } from "@/lib/analytics";
 import { errorMessage } from "@/components/post/form-utils";
 import { postJson } from "@/lib/api";
 import { reportDate } from "@/lib/reports";
+import { canOrganize } from "@/lib/roles";
 import {
   listHostAttendance,
   listMyClubs,
@@ -39,6 +43,8 @@ import { CountBars, DonutChart, PercentBars, TurnoutChart } from "./charts";
 
 const ALL = "all";
 const SOLO = "solo";
+// The people table opens with its first rows. Searching looks through everyone.
+const PEOPLE_PREVIEW = 8;
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -80,6 +86,11 @@ function ChartCard({
 }
 
 export function AnalyticsDashboard() {
+  const userId = useUser()?.id ?? null;
+  // True for someone who is only a member of their clubs: the data is not theirs to read.
+  const [memberOnly, setMemberOnly] = useState(false);
+  const [peopleQuery, setPeopleQuery] = useState("");
+  const [showAllPeople, setShowAllPeople] = useState(false);
   const [events, setEvents] = useState<CampusEvent[]>([]);
   const [rows, setRows] = useState<AttendanceRow[]>([]);
   const [rescues, setRescues] = useState<FoodRescue[]>([]);
@@ -95,12 +106,15 @@ export function AnalyticsDashboard() {
   const [thinking, setThinking] = useState(false);
   const [insightsError, setInsightsError] = useState<string | null>(null);
 
+  // Waits for the session: on a first visit the sign-in finishes after the page mounts.
   useEffect(() => {
+    if (!userId) return;
     let cancelled = false;
     (async () => {
       try {
+        // Only the events this account may read data for: a club member gets none.
         const [hosted, attendance, myClubs] = await Promise.all([
-          listMyHostedEvents(),
+          listMyHostedEvents("manage"),
           listHostAttendance(),
           listMyClubs(),
         ]);
@@ -108,7 +122,8 @@ export function AnalyticsDashboard() {
         if (cancelled) return;
         setEvents(hosted);
         setRows(attendance);
-        setClubs(myClubs);
+        setClubs(myClubs.filter((club) => canOrganize(club.role)));
+        setMemberOnly(hosted.length === 0 && myClubs.some((club) => club.role === "member"));
         setRescues(food);
       } catch (loadError) {
         if (!cancelled) {
@@ -121,7 +136,7 @@ export function AnalyticsDashboard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [userId]);
 
   const clubEvents = useMemo(
     () =>
@@ -194,6 +209,8 @@ export function AnalyticsDashboard() {
     );
   }
 
+  if (memberOnly) return <OrganizersOnly title="Analytics" />;
+
   if (events.length === 0) {
     return (
       <div className="mx-auto flex max-w-md flex-col items-center gap-3 px-6 py-24 text-center">
@@ -207,6 +224,15 @@ export function AnalyticsDashboard() {
       </div>
     );
   }
+
+  const needle = peopleQuery.trim().toLowerCase();
+  const matchingPeople = needle
+    ? analytics.people.filter(
+        (person) =>
+          person.name.toLowerCase().includes(needle) || person.major.toLowerCase().includes(needle),
+      )
+    : analytics.people;
+  const shownPeople = showAllPeople ? matchingPeople : matchingPeople.slice(0, PEOPLE_PREVIEW);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
@@ -434,16 +460,39 @@ export function AnalyticsDashboard() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">
+        <CardHeader className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <CardTitle className="text-sm font-medium tabular-nums">
             People ({analytics.people.length})
           </CardTitle>
+          {analytics.people.length > PEOPLE_PREVIEW && (
+            <div className="relative w-full sm:w-64">
+              <label htmlFor="people-search" className="sr-only">
+                Search people
+              </label>
+              <Search
+                aria-hidden
+                className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                id="people-search"
+                name="people-search"
+                type="search"
+                autoComplete="off"
+                placeholder="Name or major"
+                className="h-9 pl-8"
+                value={peopleQuery}
+                onChange={(event) => setPeopleQuery(event.target.value)}
+              />
+            </div>
+          )}
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           {analytics.people.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
               Nobody has registered yet.
             </p>
+          ) : matchingPeople.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">Nobody matches.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[32rem] text-sm">
@@ -457,7 +506,7 @@ export function AnalyticsDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {analytics.people.map((person) => (
+                  {shownPeople.map((person) => (
                     <tr key={person.guestId}>
                       <td className="py-2.5 pr-4">
                         <span className="flex items-center gap-1.5 font-medium">
@@ -484,6 +533,16 @@ export function AnalyticsDashboard() {
                 </tbody>
               </table>
             </div>
+          )}
+          {matchingPeople.length > PEOPLE_PREVIEW && (
+            <Button
+              variant="outline"
+              className="h-9 w-full tabular-nums"
+              aria-expanded={showAllPeople}
+              onClick={() => setShowAllPeople((current) => !current)}
+            >
+              {showAllPeople ? "Show fewer" : `Show all ${matchingPeople.length}`}
+            </Button>
           )}
         </CardContent>
       </Card>
