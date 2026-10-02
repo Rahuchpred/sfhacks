@@ -9,7 +9,7 @@ Built at the SF Hacks x GDG AI Hackathon (October 2, 2026) for the **Build For S
 - Next.js (App Router), Tailwind, shadcn/ui, Geist
 - Supabase: Postgres, Realtime, Storage, anonymous Auth
 - MapLibre GL with OpenFreeMap tiles (OpenStreetMap data)
-- **AI model: Google Gemma** (open weights), called through the Gemini API with the `@google/genai` SDK. The model id is set by `AI_MODEL`. Model terms: https://ai.google.dev/gemma/terms
+- **AI model: Google Gemma 4** (`gemma-4-31b-it`, open weights), called through the Gemini API with the `@google/genai` SDK. The model id is set by `AI_MODEL`. Model terms: https://ai.google.dev/gemma/terms
 
 ## Run locally
 

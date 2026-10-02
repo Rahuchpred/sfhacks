@@ -2,7 +2,7 @@
 import { GoogleGenAI, type Part } from "@google/genai";
 import type { z } from "zod";
 
-export const AI_MODEL = process.env.AI_MODEL ?? "gemma-3-27b-it";
+export const AI_MODEL = process.env.AI_MODEL ?? "gemma-4-31b-it";
 
 export function isMock(): boolean {
   return process.env.AI_MOCK === "1" || !process.env.GEMINI_API_KEY;
@@ -41,9 +41,8 @@ type GenerateJsonOptions<T> = {
   fixture: T;
 };
 
-// Gemma has no JSON mode or system instructions on the Gemini API, so the
-// prompt asks for JSON, the reply is validated with zod, and one retry feeds
-// the validation error back to the model.
+// Gemma 4 supports JSON mode, so the reply is JSON by construction. It is
+// still validated with zod, and one retry feeds the validation error back.
 export async function generateJson<T>({
   prompt,
   imageUrl,
@@ -62,7 +61,7 @@ export async function generateJson<T>({
     const response = await getClient().models.generateContent({
       model: AI_MODEL,
       contents: [{ role: "user", parts: [{ text: prompt + retryNote }, ...image] }],
-      config: { temperature: 0.2 },
+      config: { temperature: 0.2, responseMimeType: "application/json" },
     });
     try {
       return schema.parse(extractJson(response.text ?? ""));
