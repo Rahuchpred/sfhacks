@@ -18,11 +18,53 @@ const TILES = "grid gap-3 sm:grid-cols-3";
 const TILE = "rounded-xl bg-card p-4 text-card-foreground ring-1 ring-foreground/10";
 const PULSE = "motion-reduce:animate-none";
 
-const SECTIONS: { phase: EventPhase; id: string; title: string }[] = [
-  { phase: "now", id: "host-now", title: "Happening now" },
-  { phase: "upcoming", id: "host-upcoming", title: "Upcoming" },
-  { phase: "past", id: "host-past", title: "Past" },
-];
+// Timeline: the date sits in a narrow left column, the cards hang off a dashed line.
+const DAY = "sm:flex";
+const DAY_LABEL = "mb-2 flex min-w-0 items-baseline gap-2 sm:mb-0 sm:w-28 sm:shrink-0 sm:flex-col sm:gap-0 sm:pr-4";
+const DAY_BODY =
+  "relative min-w-0 flex-1 pb-6 group-last/day:pb-0 sm:border-l sm:border-dashed sm:border-foreground/20 sm:pl-6";
+const DAY_DOT =
+  "absolute top-2 -left-[4.5px] hidden size-2 rounded-full bg-muted-foreground ring-4 ring-background sm:block";
+
+type Tab = "upcoming" | "past";
+type DayGroup = { key: string; label: string; weekday: string; items: CampusEvent[] };
+
+const monthDayFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+const weekdayFormat = new Intl.DateTimeFormat(undefined, { weekday: "long" });
+const RELATIVE_DAYS: Record<number, string> = { [-1]: "Yesterday", 0: "Today", 1: "Tomorrow" };
+
+function startOfDay(time: number): number {
+  const date = new Date(time);
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+// Groups by the local calendar day an event starts on, keeping the list order.
+function groupByDay(list: CampusEvent[], now: number): DayGroup[] {
+  const today = startOfDay(now);
+  const groups = new Map<string, DayGroup>();
+  for (const event of list) {
+    const startsAt = Date.parse(event.startsAt);
+    const day = Number.isNaN(startsAt) ? null : startOfDay(startsAt);
+    const key = day === null ? "unknown" : String(day);
+    let group = groups.get(key);
+    if (!group) {
+      // Rounding absorbs the 23 and 25 hour days around a clock change.
+      const offset = day === null ? null : Math.round((day - today) / 86_400_000);
+      group = {
+        key,
+        label:
+          day === null || offset === null
+            ? "Date not set"
+            : (RELATIVE_DAYS[offset] ?? monthDayFormat.format(day)),
+        weekday: day === null ? "" : weekdayFormat.format(day),
+        items: [],
+      };
+      groups.set(key, group);
+    }
+    group.items.push(event);
+  }
+  return [...groups.values()];
+}
 
 type State = { events: CampusEvent[] | null; error: string | null };
 
@@ -49,6 +91,8 @@ export function Dashboard() {
   const [state, setState] = useState<State>({ events: null, error: null });
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [retrying, setRetrying] = useState(false);
+  // Null until the host picks a tab, so the default can follow the data.
+  const [tabChoice, setTabChoice] = useState<Tab | null>(null);
 
   const fetchEvents = useCallback(async (): Promise<State | null> => {
     // Before anonymous sign-in finishes the list would come back empty.
@@ -123,12 +167,28 @@ export function Dashboard() {
             </div>
           ))}
         </div>
-        <div className="space-y-3">
+        <div className="flex justify-end">
+          <Skeleton className={cn("h-10 w-44 rounded-lg", PULSE)} />
+        </div>
+        <div>
           {Array.from({ length: 3 }, (_, index) => (
-            <div key={index} className={cn(TILE, "space-y-3")}>
-              <Skeleton className={cn("h-5 w-2/3", PULSE)} />
-              <Skeleton className={cn("h-4 w-1/2", PULSE)} />
-              <Skeleton className={cn("h-10 w-full rounded-lg sm:w-72", PULSE)} />
+            <div key={index} className={cn("group/day", DAY)}>
+              <div className={DAY_LABEL}>
+                <Skeleton className={cn("h-5 w-16", PULSE)} />
+                <Skeleton className={cn("h-4 w-20 sm:mt-1.5", PULSE)} />
+              </div>
+              <div className={DAY_BODY}>
+                <span className={DAY_DOT} />
+                <div className={cn(TILE, "flex items-start gap-4")}>
+                  <div className="min-w-0 flex-1 space-y-2.5">
+                    <Skeleton className={cn("h-4 w-32", PULSE)} />
+                    <Skeleton className={cn("h-6 w-2/3", PULSE)} />
+                    <Skeleton className={cn("h-4 w-1/2", PULSE)} />
+                    <Skeleton className={cn("h-9 w-full max-w-56 rounded-lg", PULSE)} />
+                  </div>
+                  <Skeleton className={cn("size-18 shrink-0 rounded-lg sm:size-30", PULSE)} />
+                </div>
+              </div>
             </div>
           ))}
         </div>
@@ -198,6 +258,16 @@ export function Dashboard() {
     withRsvps.reduce((sum, event) => sum + event.rsvpCount, 0),
   );
 
+  const upcoming = [...byPhase.now, ...byPhase.upcoming];
+  const tab: Tab = tabChoice ?? (upcoming.length === 0 && byPhase.past.length > 0 ? "past" : "upcoming");
+  const visible = tab === "upcoming" ? upcoming : byPhase.past;
+  const days = groupByDay(visible, now);
+  const liveIds = new Set(byPhase.now.map((event) => event.id));
+  const tabs: { id: Tab; label: string; count: number }[] = [
+    { id: "upcoming", label: "Upcoming", count: upcoming.length },
+    { id: "past", label: "Past", count: byPhase.past.length },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
@@ -219,31 +289,64 @@ export function Dashboard() {
 
       {warning}
 
-      {SECTIONS.map(({ phase, id, title }) => {
-        const list = byPhase[phase];
-        if (list.length === 0) return null;
-        return (
-          <section key={phase} aria-labelledby={id} className="space-y-3">
-            <h2 id={id} className="font-heading text-lg font-medium">
-              {title}{" "}
-              <span className="text-sm font-normal text-muted-foreground tabular-nums">
-                {numberFormat.format(list.length)}
-              </span>
-            </h2>
-            <ul className="space-y-3">
-              {list.map((event) => (
-                <li key={event.id} className="min-w-0">
-                  <DashboardRow
-                    event={event}
-                    building={buildingById.get(event.buildingId)}
-                    phase={phase}
-                  />
-                </li>
-              ))}
-            </ul>
-          </section>
-        );
-      })}
+      <section aria-label="Events" className="space-y-4">
+        <div className="flex justify-end">
+          <div role="group" aria-label="Show events" className="flex rounded-lg bg-muted p-0.5">
+            {tabs.map(({ id, label, count }) => (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={tab === id}
+                onClick={() => setTabChoice(id)}
+                className={cn(
+                  "inline-flex min-h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                  tab === id
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {label}
+                <span className="font-normal text-muted-foreground tabular-nums">
+                  {numberFormat.format(count)}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {days.length === 0 ? (
+          <p className="py-8 text-center text-sm text-pretty text-muted-foreground">
+            {tab === "upcoming"
+              ? "Nothing coming up. Past events are under Past."
+              : "No past events yet. They show up here once they end."}
+          </p>
+        ) : (
+          <ul>
+            {days.map((day) => (
+              <li key={day.key} className={cn("group/day", DAY)}>
+                <div className={DAY_LABEL}>
+                  <h2 className="font-heading text-base font-medium">{day.label}</h2>
+                  {day.weekday && <p className="text-sm text-muted-foreground">{day.weekday}</p>}
+                </div>
+                <div className={DAY_BODY}>
+                  <span aria-hidden="true" className={DAY_DOT} />
+                  <ul className="space-y-3">
+                    {day.items.map((event) => (
+                      <li key={event.id} className="min-w-0">
+                        <DashboardRow
+                          event={event}
+                          building={buildingById.get(event.buildingId)}
+                          phase={tab === "past" ? "past" : liveIds.has(event.id) ? "now" : "upcoming"}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

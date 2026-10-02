@@ -2,9 +2,17 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CalendarClock, MapPin, Pencil, ScanLine, Utensils } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  CalendarClock,
+  MapPin,
+  Pencil,
+  ScanLine,
+  Utensils,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { useNow } from "@/components/food/countdown";
 import { EventForm } from "@/components/post/event-form";
 import { listBuildings } from "@/lib/db";
@@ -17,23 +25,17 @@ import { eventPhase, formatEventTime, placeLabel, turnoutRate, type EventPhase }
 import { Recap } from "./recap";
 import { useHostEvent } from "./use-host-event";
 
-const ACTION = "h-10 px-4";
 const countFormat = new Intl.NumberFormat();
+
+const TILE =
+  "flex min-h-12 w-full items-center gap-3 rounded-xl bg-card p-3 text-left text-sm font-medium ring-1 ring-foreground/10 transition-colors outline-none hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50";
+const TILE_ICON = "flex size-9 shrink-0 items-center justify-center rounded-lg [&>svg]:size-4";
 
 const PHASE: Record<EventPhase, { label: string; variant: "default" | "outline" | "secondary" }> = {
   upcoming: { label: "Upcoming", variant: "outline" },
   now: { label: "Happening now", variant: "default" },
   past: { label: "Ended", variant: "secondary" },
 };
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="flex flex-col-reverse gap-1 rounded-xl border p-4">
-      <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="text-3xl font-semibold tabular-nums">{countFormat.format(value)}</dd>
-    </div>
-  );
-}
 
 function leftoverFoodHref(event: CampusEvent): string {
   const query = new URLSearchParams({ tab: "food", event: event.id, building: event.buildingId });
@@ -74,6 +76,11 @@ function ManageEvent({
     event.room,
   );
   const rate = turnoutRate(event.checkedInCount, event.rsvpCount);
+  const going = Math.max(0, event.rsvpCount);
+  const checkedIn = Math.min(going, Math.max(0, event.checkedInCount));
+  const notYet = going - checkedIn;
+  const share = going > 0 ? (checkedIn / going) * 100 : 0;
+  const showLeftover = phase === "past" && event.hasFood;
 
   return (
     <div className="flex flex-col gap-8">
@@ -85,20 +92,29 @@ function ManageEvent({
           <ArrowLeft aria-hidden="true" className="size-4" />
           Your events
         </Link>
-        <h1 className="font-heading text-2xl font-semibold text-balance break-words sm:text-3xl">
-          {event.title}
-        </h1>
-        <div className="flex flex-col gap-1.5 text-sm text-muted-foreground">
-          <p className="flex items-start gap-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <h1 className="min-w-0 font-heading text-2xl font-semibold text-balance break-words sm:text-3xl">
+            {event.title}
+          </h1>
+          <Link
+            href={`/events/${event.id}`}
+            className={cn(buttonVariants({ variant: "outline" }), "w-fit sm:mt-1")}
+          >
+            Event page
+            <ArrowUpRight aria-hidden="true" />
+          </Link>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
+          <p className="flex min-w-0 items-start gap-1.5">
             <CalendarClock aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
             <span className="min-w-0 tabular-nums">{formatEventTime(event)}</span>
           </p>
-          <p className="flex items-start gap-2">
+          <p className="flex min-w-0 items-start gap-1.5">
             <MapPin aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
             <span className="min-w-0 break-words">{place}</span>
           </p>
+          <Badge variant={PHASE[phase].variant}>{PHASE[phase].label}</Badge>
         </div>
-        <Badge variant={PHASE[phase].variant}>{PHASE[phase].label}</Badge>
       </header>
 
       {editing ? (
@@ -113,53 +129,71 @@ function ManageEvent({
         />
       ) : (
         <>
-          <div aria-live="polite" className="flex flex-col gap-2">
-            <dl className="grid grid-cols-2 gap-3 sm:max-w-md">
-              <Stat label="Going" value={event.rsvpCount} />
-              <Stat label="Checked in" value={event.checkedInCount} />
-            </dl>
-            <p className="text-sm text-muted-foreground tabular-nums">
-              {rate === null
-                ? "Turnout shows once someone registers."
-                : `${countFormat.format(rate)}% turnout`}
-            </p>
-          </div>
+          <section aria-labelledby="glance-heading" className="flex flex-col gap-3">
+            <h2 id="glance-heading" className="font-heading text-lg font-medium">
+              At a glance
+            </h2>
+            <div aria-live="polite" className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <p className="text-xl font-medium tabular-nums">
+                  <span className="text-primary">{countFormat.format(going)}</span> going
+                </p>
+                <p className="text-sm text-muted-foreground tabular-nums">
+                  {rate === null
+                    ? "Turnout shows once someone registers."
+                    : `${countFormat.format(rate)}% turnout`}
+                </p>
+              </div>
+              <div
+                role="progressbar"
+                aria-label="Guests checked in"
+                aria-valuemin={0}
+                aria-valuemax={going}
+                aria-valuenow={checkedIn}
+                aria-valuetext={`${countFormat.format(checkedIn)} of ${countFormat.format(going)} checked in`}
+                className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+              >
+                <div
+                  className="h-full rounded-full bg-primary transition-[width] duration-300 motion-reduce:transition-none"
+                  style={{ width: `${share}%` }}
+                />
+              </div>
+              <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm tabular-nums">
+                <li className="flex items-center gap-1.5">
+                  <span aria-hidden="true" className="size-2 rounded-full bg-primary" />
+                  {countFormat.format(checkedIn)} checked in
+                </li>
+                <li className="flex items-center gap-1.5 text-muted-foreground">
+                  <span aria-hidden="true" className="size-2 rounded-full bg-muted-foreground/40" />
+                  {countFormat.format(notYet)} not yet
+                </li>
+              </ul>
+            </div>
+          </section>
 
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href={`/host/${event.id}/check-in`}
-              className={cn(buttonVariants({ size: "lg" }), ACTION)}
-            >
-              <ScanLine aria-hidden="true" />
+          <div className={cn("grid gap-3", showLeftover ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
+            <Link href={`/host/${event.id}/check-in`} className={TILE}>
+              <span className={cn(TILE_ICON, "bg-primary/10 text-primary")}>
+                <ScanLine aria-hidden="true" />
+              </span>
               Check in guests
             </Link>
-            <Link
-              href={`/events/${event.id}`}
-              className={cn(buttonVariants({ variant: "outline", size: "lg" }), ACTION)}
-            >
-              View page
-            </Link>
-            <Button
-              variant="outline"
-              size="lg"
-              className={ACTION}
+            <button
+              type="button"
+              className={TILE}
               disabled={buildings.length === 0}
               onClick={() => setEditing(true)}
             >
-              <Pencil aria-hidden="true" />
-              Edit
-            </Button>
-            <CancelEvent event={event} />
-            {phase === "past" && event.hasFood && (
-              <Link
-                href={leftoverFoodHref(event)}
-                className={cn(
-                  buttonVariants({ size: "lg" }),
-                  ACTION,
-                  "bg-accent text-accent-foreground hover:bg-accent/85",
-                )}
-              >
-                <Utensils aria-hidden="true" />
+              <span className={cn(TILE_ICON, "bg-primary/10 text-primary")}>
+                <Pencil aria-hidden="true" />
+              </span>
+              Edit event
+            </button>
+            {showLeftover && (
+              <Link href={leftoverFoodHref(event)} className={TILE}>
+                <span className={cn(TILE_ICON, "bg-accent/25 text-accent-foreground")}>
+                  <Utensils aria-hidden="true" />
+                </span>
                 Post leftover food
               </Link>
             )}
@@ -167,7 +201,18 @@ function ManageEvent({
 
           {phase === "past" && <Recap event={event} place={place} />}
 
-          <GuestList eventId={event.id} version={version} />
+          <hr className="border-border" />
+
+          <GuestList eventId={event.id} version={version} now={now} />
+
+          <hr className="border-border" />
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <p className="text-sm text-pretty text-muted-foreground">
+              Canceling removes the event from the map and all tickets.
+            </p>
+            <CancelEvent event={event} />
+          </div>
         </>
       )}
     </div>

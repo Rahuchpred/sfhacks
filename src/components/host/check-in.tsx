@@ -2,13 +2,22 @@
 
 import { useCallback, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CircleCheck, LoaderCircle, ScanLine, TriangleAlert, XCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  CircleCheck,
+  ListChecks,
+  LoaderCircle,
+  ScanLine,
+  TriangleAlert,
+  XCircle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { checkIn } from "@/lib/db";
 import type { CampusEvent, CheckInResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { CheckInList } from "./check-in-list";
 import { HostGate } from "./host-states";
 import { formatClock, formatEventTime } from "./host-utils";
 import { Scanner } from "./scanner";
@@ -55,7 +64,7 @@ function vibrate(pattern: number | number[]) {
 
 const TONE = {
   quiet: "border-dashed border-border bg-transparent text-muted-foreground",
-  ok: "border-primary/40 bg-primary/10 text-foreground",
+  ok: "border-primary bg-primary text-primary-foreground",
   warn: "border-accent/40 bg-accent/15 text-foreground",
   bad: "border-destructive/40 bg-destructive/10 text-foreground",
 };
@@ -92,9 +101,9 @@ function ResultBanner({ banner }: { banner: Banner }) {
       )}
       {banner.kind === "ok" && (
         <>
-          <CircleCheck aria-hidden className="size-10 shrink-0 text-primary" />
+          <CircleCheck aria-hidden className="size-10 shrink-0" />
           <div className="min-w-0">
-            <p className="text-sm font-medium text-primary">Checked in</p>
+            <p className="text-sm font-medium text-primary-foreground/80">Checked in</p>
             <p className="text-2xl leading-tight font-semibold text-balance break-words">{banner.name}</p>
             {banner.otherEvent && (
               <p className="mt-1 text-sm text-pretty">Checked in to a different event of yours.</p>
@@ -173,7 +182,41 @@ function LiveBar({ checkedIn, going }: { checkedIn: number; going: number }) {
   );
 }
 
-function CheckInBody({ id, event }: { id: string; event: CampusEvent }) {
+type View = "scan" | "list";
+
+const VIEWS: { value: View; label: string; Icon: typeof ScanLine }[] = [
+  { value: "scan", label: "Scan", Icon: ScanLine },
+  { value: "list", label: "List", Icon: ListChecks },
+];
+
+function ViewSwitch({ view, onChange }: { view: View; onChange: (view: View) => void }) {
+  return (
+    <div role="group" aria-label="Check-in view" className="grid grid-cols-2 gap-1 rounded-full bg-muted p-1">
+      {VIEWS.map(({ value, label, Icon }) => (
+        <button
+          key={value}
+          type="button"
+          aria-pressed={view === value}
+          onClick={() => onChange(value)}
+          className={cn(
+            "inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-full px-4 text-base font-medium outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none",
+            view === value
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Icon aria-hidden className="size-5" />
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function CheckInBody({ id, event, version }: { id: string; event: CampusEvent; version: number }) {
+  const [view, setView] = useState<View>("scan");
+  // Bumped on each check-in made here, so the list refetches without waiting for the live update.
+  const [checkIns, setCheckIns] = useState(0);
   const [banner, setBanner] = useState<Banner>({ kind: "idle" });
   const [busy, setBusy] = useState(false);
   const [typed, setTyped] = useState("");
@@ -210,6 +253,7 @@ function CheckInBody({ id, event }: { id: string; event: CampusEvent }) {
         const next = toBanner(result, id);
         setBanner(next);
         if (next.kind === "ok") {
+          setCheckIns((current) => current + 1);
           if (!next.otherEvent) setFloor((current) => Math.max(current, countBefore + 1));
           if (source === "typed") setTyped("");
           vibrate(80);
@@ -275,9 +319,16 @@ function CheckInBody({ id, event }: { id: string; event: CampusEvent }) {
         {eventTime && <p className="text-sm text-muted-foreground">{eventTime}</p>}
       </header>
 
-      <Scanner onCode={handleScan} />
+      <ViewSwitch view={view} onChange={setView} />
 
       <ResultBanner banner={banner} />
+
+      {/* Leaving the scan view unmounts the scanner, which turns the camera off. */}
+      {view === "scan" ? (
+        <Scanner onCode={handleScan} />
+      ) : (
+        <CheckInList eventId={id} version={version + checkIns} />
+      )}
 
       <LiveBar checkedIn={shownCount} going={event.rsvpCount} />
 
@@ -324,11 +375,11 @@ function CheckInBody({ id, event }: { id: string; event: CampusEvent }) {
 }
 
 export function CheckIn({ id }: { id: string }) {
-  const { status, event, error } = useHostEvent(id);
+  const { status, event, error, version } = useHostEvent(id);
 
   return (
     <HostGate status={status} error={error}>
-      {event && <CheckInBody id={id} event={event} />}
+      {event && <CheckInBody id={id} event={event} version={version} />}
     </HostGate>
   );
 }

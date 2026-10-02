@@ -2,7 +2,16 @@
 
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import Link from "next/link";
-import { CalendarClock, CircleCheck, Loader2, MapPin, Sparkles } from "lucide-react";
+import {
+  AlignLeft,
+  CircleCheck,
+  Loader2,
+  MapPin,
+  Sparkles,
+  Tag,
+  Users,
+  Utensils,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +30,7 @@ import type {
   ExtractEventResponse,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { Field, fieldControlProps, IssueLine, selectClass } from "./field";
+import { fieldControlProps, IssueLine, selectClass } from "./field";
 import {
   errorMessage,
   fromLocalInput,
@@ -381,20 +390,19 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
   const busy = extracting || publishing;
   const whenIssues = [...(byField.get("startsAt") ?? []), ...(byField.get("endsAt") ?? [])];
   const whereIssues = [...(byField.get("buildingId") ?? []), ...(byField.get("room") ?? [])];
-  const blockClass = "flex flex-col gap-3 rounded-xl border bg-muted/40 p-4";
+  const tile = "rounded-xl bg-muted/60";
+  const rowLabel = "flex items-center gap-2 text-sm font-medium";
+  const action = editing ? "save" : "publish";
 
   return (
     <form
       onSubmit={publish}
-      className="grid gap-8 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]"
+      className="mx-auto grid max-w-4xl gap-6 md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] md:gap-8 lg:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]"
       noValidate
     >
-      <section aria-labelledby="event-source" className="flex flex-col gap-4">
-        <h2 id="event-source" className="text-base font-semibold">
-          {editing ? "Flyer" : "Start from a flyer or notes"}
-        </h2>
-
+      <section aria-label="Flyer and AI draft" className="flex flex-col gap-3">
         <ImageDrop
+          square
           label={editing ? "Add a flyer" : "Add a flyer or cover"}
           value={flyerUrl}
           onChange={(url) => {
@@ -406,21 +414,21 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
         />
 
         {!editing && (
-          <>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="event-text">Or paste rough text</Label>
-              <Textarea
-                id="event-text"
-                name="notes"
-                autoComplete="off"
-                value={text}
-                onChange={(event) => setText(event.target.value)}
-                placeholder="boba + board games thurs 5pm cesar chavez, rosa parks room, free boba…"
-                className="min-h-24"
-                disabled={busy}
-              />
-            </div>
-
+          <div className={cn(tile, "flex flex-col gap-2 p-3")}>
+            <Label htmlFor="event-text">
+              <Sparkles className="size-4 text-primary" aria-hidden />
+              Draft it with AI
+            </Label>
+            <Textarea
+              id="event-text"
+              name="notes"
+              autoComplete="off"
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              placeholder="Paste rough notes: boba + board games thurs 5pm cesar chavez, free boba…"
+              className="min-h-20 bg-background"
+              disabled={busy}
+            />
             <Button
               type="button"
               size="lg"
@@ -428,28 +436,26 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
               onClick={extract}
               disabled={busy || uploading || (!flyerUrl && !text.trim())}
             >
-              {extracting ? (
+              {extracting && (
                 <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden />
-              ) : (
-                <Sparkles aria-hidden />
               )}
-              {extracting ? "Reading…" : "Fill in the form with AI"}
+              {extracting ? "Reading…" : "Fill in the form"}
             </Button>
-            <p aria-live="polite" className="text-sm text-pretty text-muted-foreground">
+            <p aria-live="polite" className="text-xs text-pretty text-muted-foreground">
               {extracting
                 ? "This can take up to half a minute."
-                : "AI drafts the form and you correct it. Or skip this and type the details."}
+                : "Reads your flyer or notes and fills in the form. You correct it. Or skip this and type the details."}
             </p>
             {extractError && (
               <p role="alert" className="text-sm font-medium text-destructive">
                 {extractError}
               </p>
             )}
-          </>
+          </div>
         )}
       </section>
 
-      <div className="flex min-w-0 flex-col gap-5">
+      <div className="flex min-w-0 flex-col gap-3">
         <h2 className="sr-only">Event details</h2>
 
         {confidence !== null && (
@@ -463,182 +469,221 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
           </p>
         )}
 
-        <fieldset disabled={busy} className="flex min-w-0 flex-col gap-5">
-          <Field
-            id="event-title"
-            label="Event name"
-            needsInput={needs("title")}
-            issues={byField.get("title")}
-          >
-            <Input
+        <fieldset disabled={busy} className="flex min-w-0 flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <label
+                className={cn(
+                  tile,
+                  "flex h-8 w-fit max-w-full min-w-0 items-center gap-2 px-2.5 text-sm focus-within:ring-3 focus-within:ring-ring/50",
+                )}
+              >
+                <Users className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                <span className="sr-only">Club or organizer</span>
+                <input
+                  {...fieldControlProps("event-club", byField.get("clubName"))}
+                  name="club"
+                  autoComplete="off"
+                  placeholder="Club or organizer"
+                  className="w-48 max-w-full min-w-0 bg-transparent text-base outline-none placeholder:text-muted-foreground md:text-sm"
+                  value={values.clubName}
+                  onChange={(event) => update("clubName", event.target.value)}
+                />
+              </label>
+              {needs("clubName") && <NeedsInput />}
+            </div>
+            <BlockIssues id="event-club-issues" issues={byField.get("clubName") ?? []} />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label htmlFor="event-title" className="sr-only">
+              Event name
+            </label>
+            <input
               {...fieldControlProps("event-title", byField.get("title"))}
               name="title"
               autoComplete="off"
-              className="h-12 text-xl font-semibold md:text-xl"
+              placeholder="Event name"
+              className="w-full min-w-0 border-b border-transparent bg-transparent py-1 text-3xl font-semibold tracking-tight outline-none placeholder:text-muted-foreground/45 focus-visible:border-ring aria-invalid:border-destructive sm:text-4xl"
               value={values.title}
               onChange={(event) => update("title", event.target.value)}
             />
-          </Field>
-
-          <Field
-            id="event-club"
-            label="Club or organizer"
-            needsInput={needs("clubName")}
-            issues={byField.get("clubName")}
-          >
-            <Input
-              {...fieldControlProps("event-club", byField.get("clubName"))}
-              name="club"
-              autoComplete="off"
-              value={values.clubName}
-              onChange={(event) => update("clubName", event.target.value)}
-            />
-          </Field>
-
-          <div role="group" aria-labelledby="event-when" className={blockClass}>
-            <h3 id="event-when" className="flex items-center gap-2 text-sm font-semibold">
-              <CalendarClock className="size-4 text-primary" aria-hidden />
-              When
-              {(needs("startsAt") || needs("endsAt")) && <NeedsInput />}
-            </h3>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field id="event-start" label="Starts">
-                <Input
-                  {...fieldControlProps("event-start", byField.get("startsAt"))}
-                  aria-describedby={whenIssues.length > 0 ? "event-when-issues" : undefined}
-                  name="starts"
-                  type="datetime-local"
-                  className="bg-background"
-                  value={values.startsAt}
-                  onChange={(event) => update("startsAt", event.target.value)}
-                />
-              </Field>
-              <Field id="event-end" label="Ends">
-                <Input
-                  {...fieldControlProps("event-end", byField.get("endsAt"))}
-                  aria-describedby={whenIssues.length > 0 ? "event-when-issues" : undefined}
-                  name="ends"
-                  type="datetime-local"
-                  className="bg-background"
-                  min={values.startsAt || undefined}
-                  value={values.endsAt}
-                  onChange={(event) => update("endsAt", event.target.value)}
-                />
-              </Field>
-            </div>
-            <BlockIssues id="event-when-issues" issues={whenIssues} />
+            {needs("title") && <NeedsInput />}
+            <BlockIssues id="event-title-issues" issues={byField.get("title") ?? []} />
           </div>
 
-          <div role="group" aria-labelledby="event-where" className={blockClass}>
-            <h3 id="event-where" className="flex items-center gap-2 text-sm font-semibold">
-              <MapPin className="size-4 text-primary" aria-hidden />
-              Where
-              {(needs("buildingId") || needs("room")) && <NeedsInput />}
-            </h3>
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-              <Field id="event-building" label="Building">
-                <select
-                  {...fieldControlProps("event-building", byField.get("buildingId"))}
-                  aria-describedby={whereIssues.length > 0 ? "event-where-issues" : undefined}
-                  name="building"
-                  className={selectClass}
-                  value={values.buildingId}
-                  onChange={(event) => update("buildingId", event.target.value)}
+          <div role="group" aria-label="When" className={cn(tile, "flex flex-col gap-1 p-1.5")}>
+            <div className="relative flex flex-col gap-1">
+              {/* The dotted line joining the Start and End dots. */}
+              <span
+                aria-hidden
+                className="absolute top-6 bottom-6 left-[0.9rem] border-l border-dotted border-muted-foreground/60"
+              />
+              {(
+                [
+                  ["event-start", "Start", "starts", "startsAt"],
+                  ["event-end", "End", "ends", "endsAt"],
+                ] as const
+              ).map(([id, label, name, key]) => (
+                <div
+                  key={id}
+                  className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-2 py-0.5 pr-0.5 pl-2"
                 >
-                  <option value="">
-                    {buildings.length === 0 ? "Loading buildings…" : "Choose a building"}
+                  <label htmlFor={id} className="flex items-center gap-2.5 text-sm">
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "relative size-2.5 shrink-0 rounded-full border border-muted-foreground/70",
+                        key === "startsAt" ? "bg-muted-foreground/70" : "bg-muted",
+                      )}
+                    />
+                    {label}
+                  </label>
+                  <Input
+                    {...fieldControlProps(id, byField.get(key))}
+                    aria-describedby={whenIssues.length > 0 ? "event-when-issues" : undefined}
+                    name={name}
+                    type="datetime-local"
+                    className="h-9 border-transparent bg-background"
+                    min={key === "endsAt" ? values.startsAt || undefined : undefined}
+                    value={values[key]}
+                    onChange={(event) => update(key, event.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
+            {(needs("startsAt") || needs("endsAt") || whenIssues.length > 0) && (
+              <div className="flex flex-col gap-1 px-2 pb-1.5">
+                {(needs("startsAt") || needs("endsAt")) && <NeedsInput />}
+                <BlockIssues id="event-when-issues" issues={whenIssues} />
+              </div>
+            )}
+          </div>
+
+          <div
+            role="group"
+            aria-labelledby="event-where"
+            className={cn(tile, "flex flex-col gap-2 p-3")}
+          >
+            <p id="event-where" className={rowLabel}>
+              <MapPin className="size-4 text-muted-foreground" aria-hidden />
+              Location
+              {(needs("buildingId") || needs("room")) && <NeedsInput />}
+            </p>
+            <div className="grid gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+              <select
+                {...fieldControlProps("event-building", byField.get("buildingId"))}
+                aria-describedby={whereIssues.length > 0 ? "event-where-issues" : undefined}
+                aria-label="Building"
+                name="building"
+                className={cn(selectClass, "h-9 border-transparent")}
+                value={values.buildingId}
+                onChange={(event) => update("buildingId", event.target.value)}
+              >
+                <option value="">
+                  {buildings.length === 0 ? "Loading buildings…" : "Choose a building"}
+                </option>
+                {buildings.map((building) => (
+                  <option key={building.id} value={building.id}>
+                    {building.name}
                   </option>
-                  {buildings.map((building) => (
-                    <option key={building.id} value={building.id}>
-                      {building.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field id="event-room" label="Room" optional>
-                <Input
-                  {...fieldControlProps("event-room", byField.get("room"))}
-                  aria-describedby={whereIssues.length > 0 ? "event-where-issues" : undefined}
-                  name="room"
-                  autoComplete="off"
-                  className="bg-background"
-                  value={values.room}
-                  onChange={(event) => update("room", event.target.value)}
-                />
-              </Field>
+                ))}
+              </select>
+              <Input
+                {...fieldControlProps("event-room", byField.get("room"))}
+                aria-describedby={whereIssues.length > 0 ? "event-where-issues" : undefined}
+                aria-label="Room, optional"
+                name="room"
+                autoComplete="off"
+                placeholder="Room (optional)"
+                className="h-9 border-transparent bg-background"
+                value={values.room}
+                onChange={(event) => update("room", event.target.value)}
+              />
             </div>
             <BlockIssues id="event-where-issues" issues={whereIssues} />
           </div>
 
-          <Field
-            id="event-description"
-            label="Description"
-            optional
-            issues={byField.get("description")}
-          >
+          <div className={cn(tile, "flex flex-col gap-2 p-3")}>
+            <label htmlFor="event-description" className={rowLabel}>
+              <AlignLeft className="size-4 text-muted-foreground" aria-hidden />
+              Description
+              <span className="text-xs font-normal text-muted-foreground">Optional</span>
+            </label>
             <Textarea
               {...fieldControlProps("event-description", byField.get("description"))}
+              aria-describedby={
+                byField.has("description") ? "event-description-issues" : undefined
+              }
               name="description"
               autoComplete="off"
-              className="min-h-24"
+              className="min-h-20 border-transparent bg-background"
               value={values.description}
               onChange={(event) => update("description", event.target.value)}
             />
-          </Field>
-
-          <div role="group" aria-labelledby="event-tags" className="flex flex-col gap-2">
-            <p id="event-tags" className="flex items-center gap-2 text-sm leading-none font-medium">
-              Tags <span className="text-xs font-normal text-muted-foreground">Optional</span>
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {EVENT_TAGS.map((tag) => {
-                const on = values.tags.includes(tag);
-                return (
-                  <button
-                    key={tag}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => toggleTag(tag)}
-                    className={cn(
-                      "h-8 touch-manipulation rounded-full border px-3 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
-                      on
-                        ? "border-primary bg-primary text-primary-foreground hover:bg-primary/85"
-                        : "border-input bg-background hover:bg-muted",
-                    )}
-                  >
-                    {tag}
-                  </button>
-                );
-              })}
-            </div>
-            <BlockIssues id="event-tags-issues" issues={byField.get("tags") ?? []} />
+            <BlockIssues
+              id="event-description-issues"
+              issues={byField.get("description") ?? []}
+            />
           </div>
 
-          <Field
-            id="event-food"
-            label="Free food"
-            needsInput={needs("hasFood")}
-            issues={byField.get("hasFood")}
-          >
-            <label className="flex min-h-8 w-fit cursor-pointer items-center gap-2 text-sm">
-              <input
-                {...fieldControlProps("event-food", byField.get("hasFood"))}
-                name="hasFood"
-                type="checkbox"
-                className="size-4 accent-accent"
-                checked={values.hasFood}
-                onChange={(event) => update("hasFood", event.target.checked)}
-              />
-              There will be free food at this event
-            </label>
-          </Field>
+          <h3 className="mt-2 text-sm font-medium text-muted-foreground">Event options</h3>
+          <div className={cn(tile, "divide-y divide-border")}>
+            <div role="group" aria-labelledby="event-tags" className="flex flex-col gap-2 p-3">
+              <p id="event-tags" className={rowLabel}>
+                <Tag className="size-4 text-muted-foreground" aria-hidden />
+                Tags
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {EVENT_TAGS.map((tag) => {
+                  const on = values.tags.includes(tag);
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => toggleTag(tag)}
+                      className={cn(
+                        "h-8 touch-manipulation rounded-full border px-3 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+                        on
+                          ? "border-primary bg-primary text-primary-foreground hover:bg-primary/85"
+                          : "border-transparent bg-background hover:bg-background/60",
+                      )}
+                    >
+                      {tag}
+                    </button>
+                  );
+                })}
+              </div>
+              <BlockIssues id="event-tags-issues" issues={byField.get("tags") ?? []} />
+            </div>
+
+            <div className="flex flex-col gap-1 p-3">
+              <label className="flex min-h-8 cursor-pointer items-center justify-between gap-3 text-sm font-medium">
+                <span className="flex flex-wrap items-center gap-2">
+                  <Utensils className="size-4 text-muted-foreground" aria-hidden />
+                  Free food at this event
+                  {needs("hasFood") && <NeedsInput />}
+                </span>
+                <input
+                  {...fieldControlProps("event-food", byField.get("hasFood"))}
+                  name="hasFood"
+                  type="checkbox"
+                  className="size-5 shrink-0 accent-accent"
+                  checked={values.hasFood}
+                  onChange={(event) => update("hasFood", event.target.checked)}
+                />
+              </label>
+              <BlockIssues id="event-food-issues" issues={byField.get("hasFood") ?? []} />
+            </div>
+          </div>
         </fieldset>
 
         {check && showIssues && <IssueList issues={general} questions={check.questions} />}
 
         <section
           aria-label={editing ? "Check and save" : "Check and publish"}
-          className="flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between"
+          className="mt-2 flex flex-col gap-3"
         >
           <p aria-live="polite" className="flex items-center gap-2 text-sm text-pretty">
             {(checkState === "checking" || checkState === "stale") && (
@@ -649,8 +694,8 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
                 />
                 {errorCount > 0 ? (
                   <span className="font-medium text-destructive">
-                    Fix {errorCount} {errorCount === 1 ? "problem" : "problems"} to{" "}
-                    {editing ? "save" : "publish"}. Checking the rest…
+                    Fix {errorCount} {errorCount === 1 ? "problem" : "problems"} to {action}.
+                    Checking the rest…
                   </span>
                 ) : (
                   "Checking your event. This can take up to half a minute…"
@@ -658,12 +703,13 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
               </>
             )}
             {checkState === "idle" && (
-              <span className="text-muted-foreground">Run the check to unlock Publish.</span>
+              <span className="text-muted-foreground">
+                Check the event first. It catches wrong dates and missing details.
+              </span>
             )}
             {checked && errorCount > 0 && (
               <span className="font-medium text-destructive">
-                Fix {errorCount} {errorCount === 1 ? "problem" : "problems"} to{" "}
-                {editing ? "save" : "publish"}.
+                Fix {errorCount} {errorCount === 1 ? "problem" : "problems"} to {action}.
               </span>
             )}
             {checked && errorCount === 0 && (
@@ -674,38 +720,24 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
                 {checkState === "failed"
                   ? `The exact date and place checks passed. Review the rest yourself.${checkError ? ` (${checkError})` : ""}`
                   : warnCount > 0
-                    ? `${warnCount} ${warnCount === 1 ? "warning" : "warnings"} to look at, but you can ${editing ? "save" : "publish"}.`
-                    : editing
-                      ? "Ready to save."
-                      : "Ready to publish."}
+                    ? `${warnCount} ${warnCount === 1 ? "warning" : "warnings"} to look at, but you can ${action}.`
+                    : `Ready to ${action}.`}
               </span>
             )}
           </p>
 
-          <div className="flex shrink-0 flex-wrap gap-2">
-            {onCancel && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="lg"
-                className="h-10 px-4"
-                onClick={onCancel}
-                disabled={publishing}
-              >
-                Cancel
-              </Button>
-            )}
+          {checkState === "idle" ? (
             <Button
               type="button"
-              variant="outline"
               size="lg"
-              className="h-10 px-4"
+              className="h-11 w-full text-base"
               onClick={() => runCheck(values)}
-              disabled={busy || checkState === "checking"}
+              disabled={busy}
             >
-              {checkState === "idle" ? "Check event" : "Check again"}
+              Check event
             </Button>
-            <Button type="submit" size="lg" className="h-10 px-4" disabled={!canPublish}>
+          ) : (
+            <Button type="submit" size="lg" className="h-11 w-full text-base" disabled={!canPublish}>
               {publishing && (
                 <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden />
               )}
@@ -717,7 +749,36 @@ export function EventForm({ buildings, initial, onSaved, onCancel }: EventFormPr
                   ? "Publishing…"
                   : "Publish event"}
             </Button>
-          </div>
+          )}
+
+          {(checkState !== "idle" || onCancel) && (
+            <div className="flex flex-wrap justify-center gap-2">
+              {checkState !== "idle" && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="lg"
+                  className="h-9 px-3"
+                  onClick={() => runCheck(values)}
+                  disabled={busy || checkState === "checking"}
+                >
+                  Check again
+                </Button>
+              )}
+              {onCancel && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="lg"
+                  className="h-9 px-3"
+                  onClick={onCancel}
+                  disabled={publishing}
+                >
+                  Cancel
+                </Button>
+              )}
+            </div>
+          )}
         </section>
 
         {publishError && (

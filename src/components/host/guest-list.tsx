@@ -1,16 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { TriangleAlert, Users } from "lucide-react";
+import { Search, TriangleAlert, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { selectClass } from "@/components/post/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { listGuests } from "@/lib/db";
 import type { Guest } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { formatClock, formatStamp } from "./host-utils";
 
 type Filter = "all" | "in" | "out";
+type Sort = "newest" | "name";
 
 type State = {
   guests: Guest[] | null; // null until the first reply
@@ -19,34 +22,75 @@ type State = {
 
 const countFormat = new Intl.NumberFormat();
 
-function GuestRow({ guest }: { guest: Guest }) {
+const relativeFormat = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+
+const CONTROL = "h-10 w-auto max-w-full";
+const LIST = "divide-y overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10";
+
+// "11 hours ago", "2 days ago". Anything under a minute reads "just now".
+function formatRelative(iso: string, now: number): string {
+  const then = Date.parse(iso);
+  if (Number.isNaN(then)) return "";
+  const minutes = Math.round((then - now) / 60_000);
+  if (Math.abs(minutes) < 1) return "just now";
+  if (Math.abs(minutes) < 60) return relativeFormat.format(minutes, "minute");
+  const hours = Math.round(minutes / 60);
+  if (Math.abs(hours) < 24) return relativeFormat.format(hours, "hour");
+  const days = Math.round(hours / 24);
+  if (Math.abs(days) < 30) return relativeFormat.format(days, "day");
+  const months = Math.round(days / 30);
+  if (Math.abs(months) < 12) return relativeFormat.format(months, "month");
+  return relativeFormat.format(Math.round(days / 365), "year");
+}
+
+function GuestRow({ guest, now }: { guest: Guest; now: number }) {
+  const initial = guest.name.trim().charAt(0).toUpperCase() || "?";
   return (
-    <li className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-2">
-          <p className="min-w-0 truncate text-sm font-medium">{guest.name}</p>
-          {guest.sfsuVerified && <Badge variant="secondary">Verified SFSU</Badge>}
-        </div>
-        <p className="text-xs text-muted-foreground tabular-nums">
-          Registered {formatStamp(guest.createdAt)}
-        </p>
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5">
+      <div className="flex min-w-0 basis-full items-center gap-2.5 sm:flex-1 sm:basis-0">
+        <span
+          aria-hidden="true"
+          className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary"
+        >
+          {initial}
+        </span>
+        <p className="min-w-0 truncate text-sm font-medium">{guest.name}</p>
+        {guest.sfsuVerified && <Badge variant="secondary">Verified SFSU</Badge>}
       </div>
-      {guest.checkedInAt ? (
-        <Badge className="tabular-nums">Checked in {formatClock(guest.checkedInAt)}</Badge>
-      ) : (
-        <Badge variant="outline" className="text-muted-foreground">
-          Not yet
-        </Badge>
-      )}
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 pl-9.5 sm:pl-0">
+        {guest.checkedInAt ? (
+          <Badge className="tabular-nums">Checked in {formatClock(guest.checkedInAt)}</Badge>
+        ) : (
+          <Badge variant="outline" className="text-muted-foreground">
+            Not yet
+          </Badge>
+        )}
+        <time
+          dateTime={guest.createdAt}
+          title={`Registered ${formatStamp(guest.createdAt)}`}
+          className="text-xs whitespace-nowrap text-muted-foreground tabular-nums"
+        >
+          {formatRelative(guest.createdAt, now)}
+        </time>
+      </div>
     </li>
   );
 }
 
-export function GuestList({ eventId, version }: { eventId: string; version: number }) {
+export function GuestList({
+  eventId,
+  version,
+  now,
+}: {
+  eventId: string;
+  version: number;
+  now: number;
+}) {
   const [state, setState] = useState<State>({ guests: null, error: null });
   const [attempt, setAttempt] = useState(0);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  const [sort, setSort] = useState<Sort>("newest");
 
   // Refetches when the event's live counters change. The cleanup flag drops
   // replies that arrive after a newer request or after unmount.
@@ -96,13 +140,19 @@ export function GuestList({ eventId, version }: { eventId: string; version: numb
             </Button>
           </div>
         ) : (
-          <div aria-busy="true" className="space-y-2">
+          <div aria-busy="true">
             <p role="status" className="sr-only">
               Loading guests
             </p>
-            {Array.from({ length: 4 }, (_, index) => (
-              <Skeleton key={index} className="h-14 w-full motion-reduce:animate-none" />
-            ))}
+            <div className={LIST}>
+              {Array.from({ length: 4 }, (_, index) => (
+                <div key={index} className="flex items-center gap-2.5 px-3 py-2.5">
+                  <Skeleton className="size-7 shrink-0 rounded-full motion-reduce:animate-none" />
+                  <Skeleton className="h-4 w-32 motion-reduce:animate-none" />
+                  <Skeleton className="ml-auto h-4 w-20 motion-reduce:animate-none" />
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </section>
@@ -126,21 +176,33 @@ export function GuestList({ eventId, version }: { eventId: string; version: numb
 
   const checkedIn = guests.filter((guest) => guest.checkedInAt).length;
   const options: { value: Filter; label: string; count: number }[] = [
-    { value: "all", label: "All", count: guests.length },
+    { value: "all", label: "All guests", count: guests.length },
     { value: "in", label: "Checked in", count: checkedIn },
     { value: "out", label: "Not yet", count: guests.length - checkedIn },
   ];
 
   const needle = query.trim().toLowerCase();
-  const visible = guests.filter((guest) => {
-    if (filter === "in" && !guest.checkedInAt) return false;
-    if (filter === "out" && guest.checkedInAt) return false;
-    return !needle || guest.name.toLowerCase().includes(needle);
-  });
+  const visible = guests
+    .filter((guest) => {
+      if (filter === "in" && !guest.checkedInAt) return false;
+      if (filter === "out" && guest.checkedInAt) return false;
+      return !needle || guest.name.toLowerCase().includes(needle);
+    })
+    .sort((a, b) =>
+      sort === "name"
+        ? a.name.localeCompare(b.name)
+        : Date.parse(b.createdAt) - Date.parse(a.createdAt),
+    );
 
   return (
     <section aria-labelledby="guests-heading" className="space-y-3">
-      {heading}
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        {heading}
+        <p aria-live="polite" className="text-sm text-muted-foreground tabular-nums">
+          Showing {countFormat.format(visible.length)} of {countFormat.format(guests.length)}{" "}
+          {guests.length === 1 ? "guest" : "guests"}
+        </p>
+      </div>
 
       {error && (
         <p
@@ -154,51 +216,62 @@ export function GuestList({ eventId, version }: { eventId: string; version: numb
         </p>
       )}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex min-w-0 flex-col gap-1.5 sm:w-64">
-          <label htmlFor="guest-search" className="text-sm font-medium">
-            Search guests
-          </label>
-          <Input
-            id="guest-search"
-            name="guest-search"
-            type="search"
-            autoComplete="off"
-            placeholder="Search by name…"
-            className="h-10"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </div>
-        <div role="group" aria-label="Filter guests" className="flex flex-wrap gap-2">
-          {options.map((option) => (
-            <Button
-              key={option.value}
-              variant={filter === option.value ? "default" : "outline"}
-              size="lg"
-              className="h-10 px-3 tabular-nums"
-              aria-pressed={filter === option.value}
-              onClick={() => setFilter(option.value)}
-            >
-              {option.label} ({countFormat.format(option.count)})
-            </Button>
-          ))}
-        </div>
+      <div className="relative">
+        <label htmlFor="guest-search" className="sr-only">
+          Search guests
+        </label>
+        <Search
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+        />
+        <Input
+          id="guest-search"
+          name="guest-search"
+          type="search"
+          autoComplete="off"
+          placeholder="Search by name…"
+          className="h-10 pl-8"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
       </div>
 
-      <p aria-live="polite" className="text-sm text-muted-foreground tabular-nums">
-        Showing {countFormat.format(visible.length)} of {countFormat.format(guests.length)}{" "}
-        {guests.length === 1 ? "guest" : "guests"}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <select
+          name="guest-filter"
+          aria-label="Filter guests"
+          autoComplete="off"
+          className={cn(selectClass, CONTROL, "tabular-nums")}
+          value={filter}
+          onChange={(event) => setFilter(event.target.value as Filter)}
+        >
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label} ({countFormat.format(option.count)})
+            </option>
+          ))}
+        </select>
+        <select
+          name="guest-sort"
+          aria-label="Sort guests"
+          autoComplete="off"
+          className={cn(selectClass, CONTROL)}
+          value={sort}
+          onChange={(event) => setSort(event.target.value as Sort)}
+        >
+          <option value="newest">Newest first</option>
+          <option value="name">Name</option>
+        </select>
+      </div>
 
       {visible.length > 0 ? (
-        <ul className="divide-y rounded-lg border">
+        <ul className={LIST}>
           {visible.map((guest) => (
-            <GuestRow key={guest.rsvpId} guest={guest} />
+            <GuestRow key={guest.rsvpId} guest={guest} now={now} />
           ))}
         </ul>
       ) : (
-        <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm font-medium">
+        <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm font-medium">
           No guests match
         </p>
       )}
