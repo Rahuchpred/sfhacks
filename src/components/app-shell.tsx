@@ -174,6 +174,7 @@ function pageTitle(pathname: string): string | null {
 const ROW_CLASS =
   "h-10 gap-3 text-[0.9375rem] font-medium group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0";
 const LABEL_CLASS = "group-data-[collapsible=icon]:hidden";
+const APPEAR_CLASS = "animate-in duration-200 ease-out fade-in-0 motion-reduce:animate-none";
 const ACTIVE_ROW_CLASS =
   "data-active:bg-primary data-active:text-primary-foreground data-active:hover:bg-primary/90 data-active:hover:text-primary-foreground";
 
@@ -184,7 +185,11 @@ function NavLinks({ groups }: { groups: NavGroup[] }) {
   return (
     <>
       {groups.map((group) => (
-        <SidebarGroup key={group.label}>
+        <SidebarGroup
+          key={group.label}
+          // The role groups arrive after the account loads: they fade in instead of popping.
+          className={group === EXPLORE ? undefined : APPEAR_CLASS}
+        >
           <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -223,7 +228,7 @@ function AccountMenu() {
 
   if (!role) {
     return (
-      <SidebarMenu>
+      <SidebarMenu className={APPEAR_CLASS}>
         <SidebarMenuItem>
           <SidebarMenuButton
             size="lg"
@@ -251,7 +256,7 @@ function AccountMenu() {
   return (
     <>
       <DemoRoleSwitch />
-      <SidebarMenu>
+      <SidebarMenu className={APPEAR_CLASS}>
         <SidebarMenuItem>
           <SidebarMenuButton
             size="lg"

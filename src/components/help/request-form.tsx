@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, CircleAlert, Loader2, Plus, X } from "lucide-react";
+import { useAuth } from "@/components/auth-provider";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -108,7 +109,13 @@ function FieldError({ id, message }: { id: string; message: string }) {
 }
 
 export function RequestForm() {
-  const [draft, setDraft] = useState<Draft>(EMPTY);
+  const { profile } = useAuth();
+  // The name and department start from the profile, so they are not typed twice.
+  const [draft, setDraft] = useState<Draft>(() => ({
+    ...EMPTY,
+    requesterName: profile?.fullName ?? "",
+    department: profile?.department ?? "",
+  }));
   const [touched, setTouched] = useState<Partial<Record<ErrorKey, boolean>>>({});
   const [attempted, setAttempted] = useState(false);
   const [skillInput, setSkillInput] = useState("");
@@ -143,11 +150,16 @@ export function RequestForm() {
   }
 
   function addSkill() {
-    const skill = skillInput.trim().replace(/,+$/, "").trim();
+    // A pasted "a, b" adds both.
+    const skills = [...draft.skills];
+    for (const part of skillInput.split(",")) {
+      const skill = part.trim();
+      if (!skill || skills.length >= MAX_SKILLS) continue;
+      if (skills.some((existing) => existing.toLowerCase() === skill.toLowerCase())) continue;
+      skills.push(skill);
+    }
     setSkillInput("");
-    if (!skill || draft.skills.length >= MAX_SKILLS) return;
-    if (draft.skills.some((existing) => existing.toLowerCase() === skill.toLowerCase())) return;
-    set("skills", [...draft.skills, skill]);
+    set("skills", skills);
   }
 
   const errors = validate(draft);
@@ -164,7 +176,10 @@ export function RequestForm() {
     setAttempted(true);
     const firstError = (Object.keys(errors) as ErrorKey[])[0];
     if (firstError) {
-      document.getElementById(`help-${firstError}`)?.focus();
+      // Centered, so the field's label is not left under the top bar.
+      const field = document.getElementById(`help-${firstError}`);
+      field?.focus({ preventScroll: true });
+      field?.scrollIntoView({ block: "center" });
       return;
     }
     if (publishing || !draft.rewardType) return;
@@ -422,13 +437,13 @@ export function RequestForm() {
                     touch("rewardType");
                   }}
                   className={cn(
-                    "flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-reduce:transition-none",
+                    // No check icon: it would widen the chip and reflow the row.
+                    "flex h-9 items-center rounded-full border px-3.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-reduce:transition-none",
                     selected
                       ? "border-accent bg-accent text-accent-foreground"
                       : "bg-background hover:bg-secondary",
                   )}
                 >
-                  {selected && <Check className="size-3.5" aria-hidden />}
                   {label(reward)}
                 </button>
               );

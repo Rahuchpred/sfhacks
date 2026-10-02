@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowUp, BadgeCheck, Bookmark, BookmarkCheck, Loader2, Sparkles, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { postJson } from "@/lib/api";
 import { listRecruiterVisibleProfiles, listVisibleAttendance } from "@/lib/db";
 import { cn } from "@/lib/utils";
@@ -14,6 +15,19 @@ import type {
   RecruiterSearchResponse,
 } from "@/lib/types";
 import { VoiceButton } from "@/components/planner/voice-button";
+
+const SEARCH_TIMEOUT_MS = 90_000;
+
+// The route can pass the model's raw error through, a long block of JSON.
+// The page shows one short line instead.
+function searchMessage(error: unknown): string {
+  const text = error instanceof Error ? error.message.trim() : "";
+  if (/429|quota|rate.?limit|RESOURCE_EXHAUSTED/i.test(text)) {
+    return "The AI is busy right now. Try again in a minute.";
+  }
+  if (!text || text.length > 140 || text.startsWith("{")) return "Search failed. Try again.";
+  return text;
+}
 
 const EXAMPLES = [
   "machine learning workshops and hackathons",
@@ -155,19 +169,21 @@ function StudentRow({ profile, attended, rank, match, saved, onToggleSave }: Stu
           )}
         </ul>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-          {links.map((link) => (
-            <a
-              key={link.label}
-              href={link.href}
-              target="_blank"
-              rel="noreferrer"
-              className="font-medium text-primary underline-offset-4 hover:underline"
-            >
-              {link.label}
-            </a>
-          ))}
-        </div>
+        {links.length > 0 && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+            {links.map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-sm font-medium text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+        )}
       </div>
 
       <Button
@@ -239,15 +255,24 @@ export function RecruiterSearch() {
     setQuery(trimmed);
     setSearching(true);
     setSearchError(null);
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const result = await postJson<RecruiterSearchResponse>("/api/ai/recruiter-search", {
-        query: trimmed,
-      });
+      // The model can hang. Give up after a while, so the box is never stuck searching.
+      const result = await Promise.race([
+        postJson<RecruiterSearchResponse>("/api/ai/recruiter-search", { query: trimmed }),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error("The search took too long. Try again.")),
+            SEARCH_TIMEOUT_MS,
+          );
+        }),
+      ]);
       setMatches(result.matches);
       setSearched(trimmed);
     } catch (error) {
-      setSearchError(error instanceof Error ? error.message : "Search failed. Try again.");
+      setSearchError(searchMessage(error));
     } finally {
+      clearTimeout(timer);
       setSearching(false);
     }
   }
@@ -298,7 +323,8 @@ export function RecruiterSearch() {
             <textarea
               id="recruiter-query"
               rows={2}
-              placeholder="Describe who you are looking for, like: students who go to machine learning workshops…"
+              // Short, so it fits the two rows on a phone without a scrollbar.
+              placeholder="Describe who you are looking for"
               className="min-h-14 flex-1 resize-none bg-transparent px-3 py-2 text-base outline-none placeholder:text-muted-foreground"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -346,7 +372,8 @@ export function RecruiterSearch() {
           ))}
         </div>
 
-        <p role="status" aria-live="polite" className="mt-4 text-sm empty:hidden">
+        {/* Keeps one line of height, so the list below does not jump when a search starts. */}
+        <p role="status" aria-live="polite" className="mt-4 min-h-5 text-sm text-pretty">
           {searching ? (
             <span className="text-muted-foreground">
               Reading attendance records. This takes about 20 seconds.
@@ -380,7 +407,19 @@ export function RecruiterSearch() {
             )}
           </div>
 
-          {!loading && rows.length === 0 ? (
+          {loading ? (
+            <div aria-hidden className="divide-y">
+              {[0, 1, 2].map((row) => (
+                <div key={row} className="flex gap-4 py-5">
+                  <Skeleton className="size-11 shrink-0 rounded-full motion-reduce:animate-none" />
+                  <div className="flex-1 space-y-2.5 pt-1">
+                    <Skeleton className="h-4 w-40 motion-reduce:animate-none" />
+                    <Skeleton className="h-4 w-56 max-w-full motion-reduce:animate-none" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : rows.length === 0 ? (
             <p className="py-12 text-center text-sm text-pretty text-muted-foreground">
               {searched
                 ? "No opted-in student has attendance that fits. Try a broader search."

@@ -54,7 +54,7 @@ function OfferRow({
   const facts = [
     offer.major,
     offer.gradYear ? `Class of ${offer.gradYear}` : null,
-    `checked in to ${offer.eventsAttended} ${offer.eventsAttended === 1 ? "event" : "events"}`,
+    `${offer.eventsAttended} ${offer.eventsAttended === 1 ? "check-in" : "check-ins"}`,
   ].filter(Boolean);
 
   async function change(status: "accepted" | "declined" | "done") {
