@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BadgeCheck, Loader2, Search, Sparkles } from "lucide-react";
+import { ArrowUp, BadgeCheck, Bookmark, BookmarkCheck, Loader2, Sparkles, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { postJson } from "@/lib/api";
 import { listRecruiterVisibleProfiles, listVisibleAttendance } from "@/lib/db";
+import { cn } from "@/lib/utils";
 import type {
   AttendedEvent,
   Profile,
@@ -16,90 +15,173 @@ import type {
 } from "@/lib/types";
 
 const EXAMPLES = [
-  "Students who go to machine learning workshops and hackathons",
-  "People active in cultural clubs",
-  "Students who show up to career events",
+  "machine learning workshops and hackathons",
+  "active in cultural clubs",
+  "shows up to career events",
+  "volunteers on campus",
+];
+
+// Layout patterns borrowed from Mobbin references: a centered prompt box
+// (Dropbox Dash), a "Popular" chip row (Dribbble), people rows with a context
+// bubble on the right (Delphi) and a shortlist side panel (Semrush).
+
+const AVATAR_COLORS = [
+  "bg-[#463077] text-white",
+  "bg-[#c99700] text-[#1b1530]",
+  "bg-[#7a66ad] text-white",
+  "bg-[#2d1f52] text-white",
+  "bg-[#e6c25c] text-[#1b1530]",
 ];
 
 const dateFormat = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 
-type StudentCardProps = {
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  return (parts[0][0] + (parts[1]?.[0] ?? "")).toUpperCase();
+}
+
+function avatarColor(id: string): string {
+  let sum = 0;
+  for (const char of id) sum += char.charCodeAt(0);
+  return AVATAR_COLORS[sum % AVATAR_COLORS.length];
+}
+
+function Avatar({ profile, className }: { profile: Profile; className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "flex size-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
+        avatarColor(profile.id),
+        className,
+      )}
+    >
+      {initials(profile.fullName)}
+    </span>
+  );
+}
+
+function subtitle(profile: Profile): string {
+  return (
+    [profile.major, profile.gradYear ? `Class of ${profile.gradYear}` : null]
+      .filter(Boolean)
+      .join(" · ") || "No major listed"
+  );
+}
+
+type StudentRowProps = {
   profile: Profile;
   attended: AttendedEvent[];
+  rank?: number;
   match?: RecruiterMatch;
+  saved: boolean;
+  onToggleSave: () => void;
 };
 
-function StudentCard({ profile, attended, match }: StudentCardProps) {
+function StudentRow({ profile, attended, rank, match, saved, onToggleSave }: StudentRowProps) {
   const evidence = new Set(match?.evidenceEventIds);
+  // Evidence first, so the events that explain the match are never cut off.
+  const events = [...attended].sort(
+    (a, b) => Number(evidence.has(b.eventId)) - Number(evidence.has(a.eventId)),
+  );
   const links = [
     profile.linkedinUrl && { label: "LinkedIn", href: profile.linkedinUrl },
     profile.githubUrl && { label: "GitHub", href: profile.githubUrl },
     profile.resumeUrl && { label: "Resume", href: profile.resumeUrl },
   ].filter((link): link is { label: string; href: string } => Boolean(link));
+  const name = profile.fullName || "Unnamed student";
 
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-3">
-        <div className="min-w-0">
-          <p className="flex items-center gap-1.5 font-medium">
-            <span className="truncate">{profile.fullName || "Unnamed student"}</span>
-            {profile.sfsuVerified && (
-              <BadgeCheck className="size-4 shrink-0 text-primary" aria-label="Verified SFSU student" />
-            )}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {[profile.major, profile.gradYear ? `Class of ${profile.gradYear}` : null]
-              .filter(Boolean)
-              .join(" · ") || "No major listed"}
-          </p>
+    <article className="flex gap-4 py-5">
+      {rank !== undefined && (
+        <span className="mt-3 w-4 shrink-0 text-right text-sm text-muted-foreground tabular-nums">
+          {rank}
+        </span>
+      )}
+      <Avatar profile={profile} />
+
+      <div className="min-w-0 flex-1 space-y-2.5">
+        <div className="flex flex-col gap-2.5 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
+          <div className="min-w-0">
+            <h3 className="flex items-center gap-1.5 font-medium">
+              <span className="truncate">{name}</span>
+              {profile.sfsuVerified && (
+                <BadgeCheck
+                  className="size-4 shrink-0 text-primary"
+                  aria-label="Verified SFSU student"
+                />
+              )}
+            </h3>
+            <p className="text-sm text-muted-foreground">{subtitle(profile)}</p>
+          </div>
+
+          {match ? (
+            <p className="flex items-start gap-2 rounded-2xl rounded-tr-sm bg-secondary px-3.5 py-2.5 text-sm text-pretty lg:max-w-sm">
+              <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+              <span>
+                <span className="sr-only">Why this match, written by AI: </span>
+                {match.reason}
+              </span>
+            </p>
+          ) : (
+            profile.aiSummary && (
+              <p className="rounded-2xl rounded-tr-sm bg-secondary px-3.5 py-2.5 text-sm text-pretty lg:max-w-sm">
+                {profile.aiSummary}
+              </p>
+            )
+          )}
         </div>
 
-        {match && (
-          <p className="flex items-start gap-2 rounded-lg bg-secondary p-3 text-sm text-pretty">
-            <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
-            <span>
-              <span className="font-medium">Why this match (AI): </span>
-              {match.reason}
-            </span>
-          </p>
-        )}
+        <ul
+          aria-label={`Events ${name} checked in to`}
+          className="flex flex-wrap gap-1.5"
+        >
+          {events.slice(0, 6).map((event) => (
+            <li key={event.eventId} className="flex">
+              <Badge variant={evidence.has(event.eventId) ? "default" : "outline"}>
+                {event.title} · {dateFormat.format(new Date(event.startsAt))}
+              </Badge>
+            </li>
+          ))}
+          {events.length > 6 && (
+            <li className="flex">
+              <Badge variant="outline">+{events.length - 6} more</Badge>
+            </li>
+          )}
+          {events.length === 0 && (
+            <li className="text-sm text-muted-foreground">No check-ins yet.</li>
+          )}
+        </ul>
 
-        {profile.aiSummary && !match && (
-          <p className="text-sm text-pretty text-muted-foreground">{profile.aiSummary}</p>
-        )}
-
-        <div>
-          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            Checked in to {attended.length} {attended.length === 1 ? "event" : "events"}
-          </p>
-          <ul className="mt-1.5 flex flex-wrap gap-1.5">
-            {attended.slice(0, 8).map((event) => (
-              <li key={event.eventId} className="flex">
-                <Badge variant={evidence.has(event.eventId) ? "default" : "secondary"}>
-                  {event.title} · {dateFormat.format(new Date(event.startsAt))}
-                </Badge>
-              </li>
-            ))}
-          </ul>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+          {links.map((link) => (
+            <a
+              key={link.label}
+              href={link.href}
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              {link.label}
+            </a>
+          ))}
         </div>
+      </div>
 
-        {links.length > 0 && (
-          <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-            {links.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                target="_blank"
-                rel="noreferrer"
-                className="font-medium text-primary underline-offset-4 hover:underline"
-              >
-                {link.label}
-              </a>
-            ))}
-          </p>
-        )}
-      </CardContent>
-    </Card>
+      <Button
+        type="button"
+        variant={saved ? "secondary" : "outline"}
+        size="sm"
+        className="mt-1.5 shrink-0"
+        aria-pressed={saved}
+        onClick={onToggleSave}
+      >
+        {saved ? <BookmarkCheck aria-hidden /> : <Bookmark aria-hidden />}
+        <span className="hidden sm:inline">{saved ? "Saved" : "Save"}</span>
+        <span className="sr-only sm:hidden">{saved ? "Saved" : "Save"}</span>
+      </Button>
+    </article>
   );
 }
 
@@ -110,9 +192,11 @@ export function RecruiterSearch() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [query, setQuery] = useState("");
+  const [searched, setSearched] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const [matches, setMatches] = useState<RecruiterMatch[] | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [shortlist, setShortlist] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,7 +207,9 @@ export function RecruiterSearch() {
         setAttendance(loadedAttendance);
       })
       .catch((error: unknown) => {
-        if (!cancelled) setLoadError(error instanceof Error ? error.message : "Could not load students.");
+        if (!cancelled) {
+          setLoadError(error instanceof Error ? error.message : "Could not load students.");
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -157,6 +243,7 @@ export function RecruiterSearch() {
         query: trimmed,
       });
       setMatches(result.matches);
+      setSearched(trimmed);
     } catch (error) {
       setSearchError(error instanceof Error ? error.message : "Search failed. Try again.");
     } finally {
@@ -164,117 +251,203 @@ export function RecruiterSearch() {
     }
   }
 
-  const matched = matches
-    ?.map((match) => ({ match, profile: profileById.get(match.profileId) }))
-    .filter((item): item is { match: RecruiterMatch; profile: Profile } => Boolean(item.profile));
+  function clearSearch() {
+    setMatches(null);
+    setSearched(null);
+    setQuery("");
+    setSearchError(null);
+  }
+
+  function toggleSave(id: string) {
+    setShortlist((current) =>
+      current.includes(id) ? current.filter((saved) => saved !== id) : [...current, id],
+    );
+  }
+
+  const rows: { profile: Profile; match?: RecruiterMatch }[] = matches
+    ? matches.flatMap((match) => {
+        const profile = profileById.get(match.profileId);
+        return profile ? [{ profile, match }] : [];
+      })
+    : profiles.map((profile) => ({ profile }));
+
+  const saved = shortlist.flatMap((id) => profileById.get(id) ?? []);
 
   return (
-    <div className="mt-6 space-y-6">
-      <form
-        className="flex flex-col gap-2 sm:flex-row"
-        onSubmit={(event) => {
-          event.preventDefault();
-          search(query);
-        }}
-      >
-        <div className="relative flex-1">
-          <Search
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            aria-label="What kind of student are you looking for?"
-            placeholder="Students who go to machine learning workshops…"
-            className="h-10 pl-9"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </div>
-        <Button type="submit" size="lg" className="h-10 px-4" disabled={searching || !query.trim()}>
-          {searching ? (
-            <>
-              <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden />
-              Searching…
-            </>
-          ) : (
-            "Search with AI"
-          )}
-        </Button>
-        {matches && (
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            className="h-10 px-4"
-            onClick={() => {
-              setMatches(null);
-              setQuery("");
-            }}
-          >
-            Clear
-          </Button>
-        )}
-      </form>
+    <div className="mx-auto max-w-6xl px-6 pb-16">
+      <section className="mx-auto max-w-2xl pt-12 pb-8 text-center sm:pt-16">
+        <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+          Find students who show up
+        </h1>
+        <p className="mt-3 text-pretty text-muted-foreground">
+          Every event here was scanned at the door. You only see students who chose to be visible.
+        </p>
 
-      {!matches && (
-        <ul className="flex flex-wrap gap-2">
+        <form
+          className="mt-7 rounded-2xl border bg-card p-2 text-left shadow-sm transition-shadow focus-within:border-ring focus-within:shadow-md"
+          onSubmit={(event) => {
+            event.preventDefault();
+            search(query);
+          }}
+        >
+          <label htmlFor="recruiter-query" className="sr-only">
+            Describe the students you are looking for
+          </label>
+          <div className="flex items-end gap-2">
+            <textarea
+              id="recruiter-query"
+              rows={2}
+              placeholder="Describe who you are looking for, like: students who go to machine learning workshops…"
+              className="min-h-14 flex-1 resize-none bg-transparent px-3 py-2 text-base outline-none placeholder:text-muted-foreground"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  search(query);
+                }
+              }}
+            />
+            <Button
+              type="submit"
+              size="icon-lg"
+              className="size-10 shrink-0 rounded-full"
+              disabled={searching || !query.trim()}
+              aria-label={searching ? "Searching" : "Search with AI"}
+            >
+              {searching ? (
+                <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden />
+              ) : (
+                <ArrowUp aria-hidden />
+              )}
+            </Button>
+          </div>
+        </form>
+
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-sm">
+          <span className="text-muted-foreground">Try:</span>
           {EXAMPLES.map((example) => (
-            <li key={example} className="flex">
-              <Button type="button" variant="secondary" size="sm" onClick={() => search(example)}>
-                {example}
-              </Button>
-            </li>
+            <button
+              key={example}
+              type="button"
+              disabled={searching}
+              onClick={() => search(example)}
+              className="rounded-full border px-3 py-1 transition-colors hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
+            >
+              {example}
+            </button>
           ))}
-        </ul>
-      )}
+        </div>
 
-      <p role="status" aria-live="polite" className="text-sm text-destructive empty:hidden">
-        {searchError ?? loadError}
-      </p>
+        <p role="status" aria-live="polite" className="mt-4 text-sm empty:hidden">
+          {searching ? (
+            <span className="text-muted-foreground">
+              Reading attendance records. This takes about 20 seconds.
+            </span>
+          ) : (
+            <span className="text-destructive">{searchError ?? loadError}</span>
+          )}
+        </p>
+      </section>
 
-      {loading ? (
-        <p className="text-sm text-muted-foreground">Loading students…</p>
-      ) : matched ? (
-        <section aria-label="Matches" className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            {matched.length === 0
-              ? "No opted-in student has attendance that fits. Try a broader search."
-              : `${matched.length} ${matched.length === 1 ? "match" : "matches"}, best fit first. Highlighted events are the evidence.`}
-          </p>
-          <ul className="grid gap-4 md:grid-cols-2">
-            {matched.map(({ match, profile }) => (
-              <li key={profile.id} className="min-w-0">
-                <StudentCard
-                  profile={profile}
-                  attended={attendedBy.get(profile.id) ?? []}
-                  match={match}
-                />
-              </li>
-            ))}
-          </ul>
+      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <section aria-labelledby="results-heading" className="min-w-0">
+          <div className="flex items-baseline justify-between gap-4 border-b pb-3">
+            <h2 id="results-heading" className="text-sm text-muted-foreground">
+              {loading ? (
+                "Loading students…"
+              ) : searched ? (
+                <>
+                  {rows.length} {rows.length === 1 ? "match" : "matches"} for{" "}
+                  <span className="font-medium text-foreground">{searched}</span>
+                </>
+              ) : (
+                `${profiles.length} ${profiles.length === 1 ? "student has" : "students have"} opted in`
+              )}
+            </h2>
+            {searched && (
+              <Button type="button" variant="ghost" size="sm" onClick={clearSearch}>
+                <X aria-hidden />
+                Clear
+              </Button>
+            )}
+          </div>
+
+          {!loading && rows.length === 0 ? (
+            <p className="py-12 text-center text-sm text-pretty text-muted-foreground">
+              {searched
+                ? "No opted-in student has attendance that fits. Try a broader search."
+                : "No student has opted in yet. Students turn this on from their profile."}
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {rows.map(({ profile, match }, index) => (
+                <li key={profile.id}>
+                  <StudentRow
+                    profile={profile}
+                    attended={attendedBy.get(profile.id) ?? []}
+                    rank={match ? index + 1 : undefined}
+                    match={match}
+                    saved={shortlist.includes(profile.id)}
+                    onToggleSave={() => toggleSave(profile.id)}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
-      ) : (
-        <section aria-label="Visible students" className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            {profiles.length === 0
-              ? "No student has opted in yet. Students turn this on from their profile."
-              : `${profiles.length} ${profiles.length === 1 ? "student has" : "students have"} opted in.`}
-          </p>
-          <ul className="grid gap-4 md:grid-cols-2">
-            {profiles.map((profile) => (
-              <li key={profile.id} className="min-w-0">
-                <StudentCard profile={profile} attended={attendedBy.get(profile.id) ?? []} />
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
 
-      <p className="max-w-2xl text-xs text-pretty text-muted-foreground">
-        The AI ranks on major, graduation year and attended events only. It never sees names,
-        emails or links, and attendance shows interest, not skill. Students can turn visibility off
-        at any time.
-      </p>
+        <aside aria-labelledby="shortlist-heading" className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+          <div className="rounded-xl border p-4">
+            <h2 id="shortlist-heading" className="flex items-center justify-between font-medium">
+              Your shortlist
+              <span className="text-sm font-normal text-muted-foreground tabular-nums">
+                {saved.length}
+              </span>
+            </h2>
+            {saved.length === 0 ? (
+              <p className="mt-2 text-sm text-pretty text-muted-foreground">
+                Save students to compare them here.
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-2.5">
+                {saved.map((profile) => (
+                  <li key={profile.id} className="flex items-center gap-2.5">
+                    <Avatar profile={profile} className="size-8 text-xs" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">
+                        {profile.fullName || "Unnamed student"}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">{subtitle(profile)}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Remove ${profile.fullName || "student"} from shortlist`}
+                      onClick={() => toggleSave(profile.id)}
+                    >
+                      <X aria-hidden />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="rounded-xl bg-secondary p-4 text-sm text-pretty">
+            <p className="flex items-center gap-1.5 font-medium">
+              <Sparkles className="size-4 text-primary" aria-hidden />
+              How the AI ranks
+            </p>
+            <p className="mt-1.5 text-muted-foreground">
+              It sees major, graduation year and attended events only. Never names, emails or
+              links. Attendance shows interest, not skill, and highlighted events are the evidence
+              for each match.
+            </p>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }
