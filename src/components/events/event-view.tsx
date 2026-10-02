@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CalendarPlus, Clock, Link2, MapPin } from "lucide-react";
+import { ArrowLeft, CalendarPlus, Link2, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { useUser } from "@/components/auth-provider";
-import { formatTime, formatTimeRange, isHappeningNow, placeLabel } from "@/components/map/map-utils";
+import { formatTime, isHappeningNow, placeLabel } from "@/components/map/map-utils";
 import { useNow } from "@/components/map/use-event-filters";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -24,19 +24,6 @@ type LoadState =
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const pastDayFormat = new Intl.DateTimeFormat("en-US", {
-  weekday: "short",
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-});
-
-// formatTimeRange is written for upcoming events, so past ones get a full date.
-function whenLabel(event: CampusEvent, now: number, ended: boolean): string {
-  if (!ended) return formatTimeRange(event, now);
-  const day = pastDayFormat.format(new Date(event.startsAt));
-  return `${day}, ${formatTime(event.startsAt)} to ${formatTime(event.endsAt)}`;
-}
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -57,7 +44,10 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 
 const columns = "grid gap-8 md:grid-cols-[20rem_minmax(0,1fr)] md:gap-10";
-const coverColumn = "mx-auto w-full max-w-sm space-y-4 md:mx-0 md:max-w-none";
+const sideHeading = "border-b pb-2 text-sm font-medium text-muted-foreground";
+const monthFormat = new Intl.DateTimeFormat("en-US", { month: "short" });
+const dateFormat = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" });
+const coverColumn = "mx-auto w-full max-w-sm space-y-6 md:mx-0 md:max-w-none";
 
 function LoadingSkeleton() {
   const pulse = "motion-reduce:animate-none";
@@ -84,15 +74,6 @@ function Message({ title, children }: { title: string; children: React.ReactNode
       <h1 className="text-xl font-semibold tracking-tight text-balance">{title}</h1>
       {children}
     </div>
-  );
-}
-
-function Fact({ icon: Icon, children }: { icon: typeof Clock; children: React.ReactNode }) {
-  return (
-    <p className="flex items-start gap-2.5 text-sm">
-      <Icon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-      <span className="min-w-0 break-words tabular-nums">{children}</span>
-    </p>
   );
 }
 
@@ -249,10 +230,34 @@ export function EventView({ id }: { id: string }) {
       <article className={columns}>
         <div className={coverColumn}>
           <EventCover event={event} />
-          <div className="min-w-0">
-            <p className="text-xs font-medium text-muted-foreground">Hosted by</p>
-            <p className="mt-0.5 text-sm font-medium break-words">{event.clubName}</p>
-          </div>
+
+          <section aria-labelledby="host-heading" className="min-w-0">
+            <h2 id="host-heading" className={sideHeading}>
+              Hosted by
+            </h2>
+            <p className="mt-3 flex items-center gap-2.5">
+              <span
+                aria-hidden
+                className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground uppercase"
+              >
+                {event.clubName.trim().charAt(0) || "?"}
+              </span>
+              <span className="min-w-0 text-sm font-medium break-words">{event.clubName}</span>
+            </p>
+          </section>
+
+          {event.rsvpCount > 0 && (
+            <section aria-labelledby="going-heading" className="hidden md:block">
+              <h2 id="going-heading" className={sideHeading}>
+                <span className="tabular-nums">{event.rsvpCount}</span> going
+              </h2>
+              {event.checkedInCount > 0 && (
+                <p className="mt-3 text-sm text-muted-foreground tabular-nums">
+                  {event.checkedInCount} checked in at the door
+                </p>
+              )}
+            </section>
+          )}
         </div>
 
         <div className="min-w-0 space-y-6">
@@ -270,9 +275,40 @@ export function EventView({ id }: { id: string }) {
             </h1>
           </div>
 
-          <div className="space-y-2">
-            <Fact icon={Clock}>{whenLabel(event, now, ended)}</Fact>
-            <Fact icon={MapPin}>{place}</Fact>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div
+                aria-hidden
+                className="flex size-10 shrink-0 flex-col overflow-hidden rounded-lg border text-center"
+              >
+                <span className="bg-muted text-[0.625rem] leading-4 font-semibold text-muted-foreground uppercase">
+                  {monthFormat.format(new Date(event.startsAt))}
+                </span>
+                <span className="flex-1 text-sm leading-6 font-semibold tabular-nums">
+                  {new Date(event.startsAt).getDate()}
+                </span>
+              </div>
+              <div className="min-w-0">
+                <p className="font-medium">{dateFormat.format(new Date(event.startsAt))}</p>
+                <p className="text-sm text-muted-foreground tabular-nums">
+                  {formatTime(event.startsAt)} to {formatTime(event.endsAt)}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div
+                aria-hidden
+                className="flex size-10 shrink-0 items-center justify-center rounded-lg border"
+              >
+                <MapPin className="size-4 text-muted-foreground" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-medium break-words">{building?.name ?? "On campus"}</p>
+                <p className="text-sm break-words text-muted-foreground">
+                  {event.room ? `${event.room}, SF State` : "San Francisco State University"}
+                </p>
+              </div>
+            </div>
           </div>
 
           <RegistrationCard
@@ -298,9 +334,9 @@ export function EventView({ id }: { id: string }) {
           </div>
 
           {(event.description || event.tags.length > 0) && (
-            <section aria-labelledby="about-heading" className="space-y-3 border-t pt-6">
-              <h2 id="about-heading" className="text-base font-semibold tracking-tight">
-                About
+            <section aria-labelledby="about-heading" className="space-y-3">
+              <h2 id="about-heading" className={sideHeading}>
+                About this event
               </h2>
               {event.description && (
                 <p className="text-sm leading-relaxed break-words whitespace-pre-line text-muted-foreground">

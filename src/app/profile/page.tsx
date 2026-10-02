@@ -91,27 +91,49 @@ function ProfileView({
 
   return (
     <div className="flex flex-col gap-6 md:gap-8">
-      <header className="flex min-w-0 flex-col gap-1.5">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
-          <h1 className="min-w-0 text-2xl font-semibold tracking-tight text-balance break-words md:text-3xl">
-            {name || "Your profile"}
-          </h1>
-          {profile?.sfsuVerified && (
-            <Badge>
-              <BadgeCheck aria-hidden />
-              Verified SFSU student
-            </Badge>
+      <header className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+        <span
+          aria-hidden
+          className="flex size-16 shrink-0 items-center justify-center rounded-full bg-primary text-2xl font-semibold text-primary-foreground uppercase sm:size-20 sm:text-3xl"
+        >
+          {name ? name.charAt(0) : "?"}
+        </span>
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
+            <h1 className="min-w-0 text-3xl font-semibold tracking-tight text-balance break-words md:text-4xl">
+              {name || "Your profile"}
+            </h1>
+            {profile?.sfsuVerified && (
+              <Badge>
+                <BadgeCheck aria-hidden />
+                Verified SFSU student
+              </Badge>
+            )}
+          </div>
+          {(profile?.major || profile?.gradYear) && (
+            <p className="min-w-0 text-sm font-medium break-words">
+              {[profile.major, profile.gradYear && `Class of ${profile.gradYear}`]
+                .filter(Boolean)
+                .join(", ")}
+            </p>
+          )}
+          {profile?.email && (
+            <p className="min-w-0 text-sm break-words text-muted-foreground">{profile.email}</p>
+          )}
+          {profile?.bio && (
+            <p className="max-w-prose text-sm leading-relaxed break-words text-muted-foreground">
+              {profile.bio}
+            </p>
+          )}
+          {!name && (
+            <p className="text-sm text-pretty text-muted-foreground">
+              Add your name, then show up to events. The rest fills itself in.
+            </p>
           )}
         </div>
-        {profile?.email && (
-          <p className="min-w-0 text-sm break-words text-muted-foreground">{profile.email}</p>
-        )}
-        {!name && (
-          <p className="text-sm text-pretty text-muted-foreground">
-            Add your name, then show up to events. The rest fills itself in.
-          </p>
-        )}
       </header>
+
+      <StatsRow stats={stats} />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-8">
         <div className="flex min-w-0 flex-col gap-6">
@@ -129,7 +151,6 @@ function ProfileView({
             <AttendanceList attended={attended} />
           </section>
 
-          <StatsRow stats={stats} />
           <SummaryCard profile={profile} attended={attended} onSaved={onSaved} />
         </div>
 

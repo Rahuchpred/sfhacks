@@ -17,7 +17,7 @@ export function EventCover({ event, className }: EventCoverProps) {
         alt={`Flyer for ${event.title}`}
         width={640}
         height={800}
-        className={cn("aspect-[4/5] w-full rounded-xl border bg-muted object-cover", className)}
+        className={cn("aspect-square w-full rounded-xl border bg-muted object-cover", className)}
       />
     );
   }
@@ -25,7 +25,7 @@ export function EventCover({ event, className }: EventCoverProps) {
   return (
     <div
       className={cn(
-        "flex aspect-video w-full flex-col md:aspect-[4/5] justify-between rounded-xl bg-primary p-6 text-white",
+        "flex aspect-video w-full flex-col md:aspect-square justify-between rounded-xl bg-primary p-6 text-white",
         className,
       )}
     >
