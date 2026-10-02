@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Copied as is from React Bits (reactbits.dev).
     "src/components/reactbits/**",
+    // Copied as is from Aceternity UI (ui.aceternity.com).
+    "src/components/aceternity/**",
     ".claude/**",
   ]),
 ]);
