@@ -46,6 +46,7 @@ const RULES: [RegExp, Access][] = [
   [/^\/(map|food|clubs|safety|events)(\/|$)/, "open"],
   [/^\/(profile|tickets)(\/|$)/, "account"],
   [/^\/help\/(new|mine)(\/|$)/, ["faculty"]],
+  [/^\/faculty(\/|$)/, ["faculty"]],
   [/^\/help(\/|$)/, ["student", "faculty"]],
   [/^\/(host|post|plan)(\/|$)/, CLUB_ROLES],
   [/^\/recruiters(\/|$)/, ["recruiter"]],

@@ -786,6 +786,18 @@ export type Database = {
           sfsu_verified: boolean
         }[]
       }
+      faculty_event_attendance: {
+        Args: { p_event_id: string }
+        Returns: {
+          checked_in_at: string
+          grad_year: number
+          guest_id: string
+          guest_name: string
+          major: string
+          registered_at: string
+          sfsu_verified: boolean
+        }[]
+      }
       help_offers_for: {
         Args: { p_request_id: string }
         Returns: {

@@ -7,6 +7,7 @@ import {
   Building2,
   ChartColumn,
   CircleUser,
+  ClipboardCheck,
   ClipboardList,
   FileSpreadsheet,
   HandHelping,
@@ -78,6 +79,7 @@ const FACULTY: NavGroup = {
   items: [
     { href: "/help/new", label: "Ask for help", icon: MessageSquarePlus },
     { href: "/help/mine", label: "My requests", icon: ClipboardList },
+    { href: "/faculty/attendance", label: "Event attendance", icon: ClipboardCheck },
   ],
 };
 
