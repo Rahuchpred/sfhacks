@@ -7,7 +7,13 @@ import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 import { userFromRequest } from "@/lib/supabase/server";
 
-type DemoRequest = { email?: string; code?: string };
+type DemoRequest = { email?: string; code?: string; open?: boolean };
+
+// DEMO_OPEN=1 lets any visitor in without typing anything: each one gets a fresh demo
+// account (a student who owns the sample club "Gator Coders", with the role switch).
+function openDemo(): boolean {
+  return demoEnabled() && process.env.DEMO_OPEN === "1";
+}
 
 function demoEnabled(): boolean {
   return process.env.DEMO_LOGIN === "1" && Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
@@ -27,13 +33,58 @@ function notFound(): Response {
 
 // Tells the onboarding whether to ask this route before sending a real email.
 export async function GET() {
-  return Response.json({ enabled: demoEnabled() });
+  return Response.json({ enabled: demoEnabled(), open: openDemo() });
+}
+
+// A new demo account for one visitor, signed in at once.
+async function openVisitor(): Promise<Response> {
+  const options = { auth: { persistSession: false, autoRefreshToken: false } };
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const admin = createClient<Database>(url, process.env.SUPABASE_SERVICE_ROLE_KEY!, options);
+  const email = `visitor-${crypto.randomUUID().slice(0, 8)}@demo.gatorradar.test`;
+
+  const { data: created, error: createError } = await admin.auth.admin.createUser({
+    email,
+    email_confirm: true,
+  });
+  if (createError || !created.user) {
+    return Response.json({ error: "Could not start the demo." }, { status: 500 });
+  }
+  const id = created.user.id;
+  await admin.from("profiles").upsert({
+    id,
+    full_name: "Demo visitor",
+    major: "Computer Science",
+    grad_year: 2028,
+    role: "student",
+    is_demo: true,
+  });
+  const { data: club } = await admin.from("clubs").select("id").eq("name", "Gator Coders").maybeSingle();
+  if (club) await admin.from("club_members").upsert({ club_id: club.id, uid: id, role: "owner" });
+
+  const { data: link } = await admin.auth.admin.generateLink({ type: "magiclink", email });
+  if (!link?.properties?.hashed_token) {
+    return Response.json({ error: "Could not start the demo." }, { status: 500 });
+  }
+  const client = createClient<Database>(url, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, options);
+  const { data, error } = await client.auth.verifyOtp({
+    token_hash: link.properties.hashed_token,
+    type: "magiclink",
+  });
+  if (error || !data.session) {
+    return Response.json({ error: "Could not start the demo." }, { status: 500 });
+  }
+  return Response.json({
+    accessToken: data.session.access_token,
+    refreshToken: data.session.refresh_token,
+  });
 }
 
 export async function POST(request: Request) {
   if (!demoEnabled()) return notFound();
 
   const body = (await request.json().catch(() => ({}))) as DemoRequest;
+  if (body.open) return openDemo() ? openVisitor() : notFound();
   const email = body.email?.trim().toLowerCase() ?? "";
   if (!isDemoEmail(email)) return notFound();
 

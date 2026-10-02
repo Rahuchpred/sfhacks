@@ -44,8 +44,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // A failed anonymous sign-in still counts as known: the visitor is a guest.
-    const becomeGuest = () =>
-      supabase.auth.signInAnonymously().finally(() => setSessionKnown(true));
+    // On a demo site (DEMO_OPEN=1) a visitor is signed in at once as a fresh demo account,
+    // so nothing has to be typed. Anywhere else the visitor is an anonymous guest.
+    const becomeGuest = async () => {
+      try {
+        const info = (await fetch("/api/demo/sign-in").then((response) => response.json())) as {
+          open?: boolean;
+        };
+        if (info.open) {
+          const response = await fetch("/api/demo/sign-in", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ open: true }),
+          });
+          const tokens = (await response.json()) as { accessToken?: string; refreshToken?: string };
+          if (response.ok && tokens.accessToken && tokens.refreshToken) {
+            const { error } = await supabase.auth.setSession({
+              access_token: tokens.accessToken,
+              refresh_token: tokens.refreshToken,
+            });
+            if (!error) return setSessionKnown(true);
+          }
+        }
+      } catch {
+        // Fall through to a plain guest.
+      }
+      await supabase.auth.signInAnonymously().catch(() => {});
+      setSessionKnown(true);
+    };
 
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
