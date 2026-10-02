@@ -1,5 +1,5 @@
 // Server-only AI client. Every AI route goes through generateJson().
-import { GoogleGenAI, type Part } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel, type Part } from "@google/genai";
 import type { z } from "zod";
 
 export const AI_MODEL = process.env.AI_MODEL ?? "gemma-4-31b-it";
@@ -34,6 +34,9 @@ function extractJson(text: string): unknown {
   return JSON.parse(text.slice(start, end + 1));
 }
 
+// A call that takes longer than this is given up, so a page never waits forever.
+const AI_TIMEOUT_MS = 60_000;
+
 type GenerateJsonOptions<T> = {
   prompt: string;
   imageUrl?: string;
@@ -61,7 +64,14 @@ export async function generateJson<T>({
     const response = await getClient().models.generateContent({
       model: AI_MODEL,
       contents: [{ role: "user", parts: [{ text: prompt + retryNote }, ...image] }],
-      config: { temperature: 0.2, responseMimeType: "application/json" },
+      config: {
+        temperature: 0.2,
+        responseMimeType: "application/json",
+        // The model's long thinking step made answers take from 20 seconds to minutes.
+        // These are short reading and writing jobs, so it is skipped.
+        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+        abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
+      },
     });
     try {
       return schema.parse(extractJson(response.text ?? ""));
@@ -72,7 +82,21 @@ export async function generateJson<T>({
   throw new Error(`AI reply could not be parsed: ${lastError}`);
 }
 
+// A short message for the page. The model's own error text is long and technical, so it
+// goes to the server log only.
 export function aiErrorResponse(error: unknown): Response {
-  const message = error instanceof Error ? error.message : "AI request failed.";
-  return Response.json({ error: message }, { status: 500 });
+  const raw = error instanceof Error ? error.message : String(error);
+  console.error("AI request failed:", raw.slice(0, 800));
+  const name = error instanceof Error ? error.name : "";
+  if (/429|quota|RESOURCE_EXHAUSTED|rate limit/i.test(raw)) {
+    return Response.json(
+      { error: "The AI is busy right now. Try again in a minute." },
+      { status: 503 },
+    );
+  }
+  if (name === "TimeoutError" || name === "AbortError" || /timed? ?out|aborted/i.test(raw)) {
+    return Response.json({ error: "The AI took too long. Try again." }, { status: 504 });
+  }
+  const safe = raw.length <= 120 && !raw.includes("{") ? raw : "The AI request failed. Try again.";
+  return Response.json({ error: safe }, { status: 500 });
 }

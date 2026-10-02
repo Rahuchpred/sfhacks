@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { cookies } from "next/headers";
 import { AppShell } from "@/components/app-shell";
 import { AuthProvider } from "@/components/auth-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -26,7 +27,10 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // The sidebar remembers whether it was collapsed. Read here so it never animates on load.
+  const sidebarOpen = (await cookies()).get("sidebar_state")?.value !== "false";
+
   return (
     <html
       lang="en"
@@ -34,7 +38,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="h-full">
         <AuthProvider>
-          <AppShell>{children}</AppShell>
+          <AppShell sidebarOpen={sidebarOpen}>{children}</AppShell>
         </AuthProvider>
         <Toaster position="bottom-right" />
       </body>

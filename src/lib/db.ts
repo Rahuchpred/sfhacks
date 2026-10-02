@@ -579,6 +579,7 @@ export async function listRecruiterVisibleProfiles(): Promise<Profile[]> {
     .from("profiles")
     .select("*")
     .eq("recruiter_visible", true)
+    .eq("role", "student")
     .order("full_name");
   if (error) throw error;
   return data.map(toProfile);

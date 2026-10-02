@@ -298,7 +298,14 @@ function PageSkeleton() {
   );
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  sidebarOpen = true,
+}: {
+  children: React.ReactNode;
+  // From the sidebar cookie, read on the server.
+  sidebarOpen?: boolean;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, role, ready } = useAuth();
@@ -322,7 +329,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <SidebarProvider className="h-dvh">
+    <SidebarProvider className="h-dvh" defaultOpen={sidebarOpen}>
       <Sidebar collapsible="icon">
         <SidebarHeader>
           <Link
