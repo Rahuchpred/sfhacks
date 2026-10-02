@@ -1,12 +1,12 @@
+// Mobbin reference: Mercor profile (web), stacked labelled fields with select and search-and-select controls.
 "use client";
 
 import { useState } from "react";
 import { toast } from "sonner";
 import { Field, fieldControlProps } from "@/components/post/field";
+import { MajorPicker } from "@/components/profile/major-picker";
 import {
   BIO_LIMIT,
-  GRAD_YEAR_MAX,
-  GRAD_YEAR_MIN,
   errorMessage,
   urlError,
   useUnsavedWarning,
@@ -14,6 +14,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { saveMyProfile } from "@/lib/db";
 import { cn } from "@/lib/utils";
@@ -31,6 +38,11 @@ type FieldName = keyof Values;
 
 const FIELD_ORDER: FieldName[] = ["fullName", "major", "gradYear", "bio", "linkedinUrl", "githubUrl"];
 
+const NO_YEAR = "none";
+// This year through six years out.
+const THIS_YEAR = new Date().getFullYear();
+const GRAD_YEARS = Array.from({ length: 7 }, (_, index) => String(THIS_YEAR + index));
+
 function toValues(profile: Profile | null): Values {
   return {
     fullName: profile?.fullName ?? "",
@@ -45,15 +57,6 @@ function toValues(profile: Profile | null): Values {
 function validate(values: Values): Partial<Record<FieldName, string>> {
   const errors: Partial<Record<FieldName, string>> = {};
   if (!values.fullName.trim()) errors.fullName = "Enter your name.";
-
-  const year = values.gradYear.trim();
-  if (year) {
-    const number = Number(year);
-    if (!/^\d{4}$/.test(year)) errors.gradYear = "Use a 4 digit year, like 2027.";
-    else if (number < GRAD_YEAR_MIN || number > GRAD_YEAR_MAX) {
-      errors.gradYear = `Pick a year from ${GRAD_YEAR_MIN} to ${GRAD_YEAR_MAX}.`;
-    }
-  }
 
   if (values.bio.length > BIO_LIMIT) errors.bio = `Keep it to ${BIO_LIMIT} characters.`;
 
@@ -130,12 +133,17 @@ export function DetailsForm({ profile, onSaved }: Props) {
   }
 
   const bioLeft = BIO_LIMIT - values.bio.length;
+  // A year saved earlier that is now outside the range stays selectable, so saving does not drop it.
+  const yearOptions =
+    saved.gradYear && !GRAD_YEARS.includes(saved.gradYear)
+      ? [saved.gradYear, ...GRAD_YEARS]
+      : GRAD_YEARS;
 
   return (
     <Card>
       <CardHeader>
         <h2 className="font-heading text-base leading-snug font-medium text-balance">Your details</h2>
-        <CardDescription>Only you see this unless you turn on recruiter visibility.</CardDescription>
+        <CardDescription>Private unless you turn on recruiter visibility.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
@@ -151,30 +159,38 @@ export function DetailsForm({ profile, onSaved }: Props) {
             />
           </Field>
 
-          <Field id="profile-major" label="Major" optional issues={issuesFor("major")}>
-            <Input
-              {...controlProps("major")}
-              name="major"
-              type="text"
-              autoComplete="off"
-              maxLength={120}
-              placeholder="Computer Science…"
+          <Field id="profile-major" label="Major" optional>
+            <MajorPicker
+              id="profile-major"
+              value={values.major}
+              onChange={(major) => setValues((current) => ({ ...current, major }))}
             />
           </Field>
 
-          <Field id="profile-gradYear" label="Graduation year" optional issues={issuesFor("gradYear")}>
-            <Input
-              {...controlProps("gradYear")}
-              name="gradYear"
-              type="number"
-              inputMode="numeric"
-              autoComplete="off"
-              min={GRAD_YEAR_MIN}
-              max={GRAD_YEAR_MAX}
-              step={1}
-              placeholder="2027…"
-              className="tabular-nums"
-            />
+          <Field id="profile-gradYear" label="Graduation year" optional>
+            <Select
+              value={values.gradYear || NO_YEAR}
+              onValueChange={(value) =>
+                setValues((current) => ({
+                  ...current,
+                  gradYear: !value || value === NO_YEAR ? "" : value,
+                }))
+              }
+            >
+              <SelectTrigger id="profile-gradYear" className="w-full tabular-nums">
+                <SelectValue>
+                  {values.gradYear || <span className="text-muted-foreground">Not set</span>}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_YEAR}>Not set</SelectItem>
+                {yearOptions.map((year) => (
+                  <SelectItem key={year} value={year} className="tabular-nums">
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
 
           <Field id="profile-bio" label="Short bio" optional issues={issuesFor("bio")}>
@@ -185,7 +201,7 @@ export function DetailsForm({ profile, onSaved }: Props) {
               autoComplete="off"
               maxLength={BIO_LIMIT}
               rows={3}
-              placeholder="What you are into, in a sentence or two…"
+              placeholder="What you are into"
             />
             <p
               id="profile-bio-count"

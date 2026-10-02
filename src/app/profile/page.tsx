@@ -1,3 +1,4 @@
+// Mobbin reference: Mercor profile (web), a header with the person, then stacked sections and a details column.
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -55,9 +56,7 @@ export default function ProfilePage() {
       {loaded.status === "error" && (
         <div role="alert" className="flex flex-col items-start gap-3">
           <h1 className="text-2xl font-semibold tracking-tight text-balance">Your profile</h1>
-          <p className="text-sm text-muted-foreground">
-            Could not load your profile. Check your connection and try again.
-          </p>
+          <p className="text-sm text-muted-foreground">Could not load your profile.</p>
           <Button type="button" variant="outline" onClick={retry}>
             Try again
           </Button>
@@ -127,7 +126,7 @@ function ProfileView({
           )}
           {!name && (
             <p className="text-sm text-pretty text-muted-foreground">
-              Add your name, then show up to events. The rest fills itself in.
+              Add your name to get started.
             </p>
           )}
         </div>
@@ -152,6 +151,12 @@ function ProfileView({
           </section>
 
           <SummaryCard profile={profile} attended={attended} onSaved={onSaved} />
+
+          {/*
+            SLOT: "Help I gave".
+            Main thread: render <MyHelp /> here, from "@/components/help/my-help".
+            It is built by another agent and is not in this worktree, so it is not imported yet.
+          */}
         </div>
 
         <div className="flex min-w-0 flex-col gap-6">

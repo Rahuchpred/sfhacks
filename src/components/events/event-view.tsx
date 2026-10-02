@@ -1,8 +1,9 @@
+// Mobbin reference: Sweatpals event page (web), cover beside the details with a "Meet your host" block.
 "use client";
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CalendarPlus, Link2, MapPin } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarPlus, Link2, MapPin, Utensils } from "lucide-react";
 import { toast } from "sonner";
 import { useUser } from "@/components/auth-provider";
 import { formatTime, isHappeningNow, placeLabel } from "@/components/map/map-utils";
@@ -10,7 +11,13 @@ import { useNow } from "@/components/map/use-event-filters";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getEvent, getMyTicket, listBuildings, subscribeToCampus } from "@/lib/db";
+import {
+  getEvent,
+  getMyTicket,
+  listBuildings,
+  listOpenRescues,
+  subscribeToCampus,
+} from "@/lib/db";
 import type { Building, CampusEvent, Ticket } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { EventCover } from "./event-cover";
@@ -87,6 +94,8 @@ export function EventView({ id }: { id: string }) {
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [ticketReady, setTicketReady] = useState(false);
+  // Portions of leftover food from this event that can still be claimed.
+  const [leftoverPortions, setLeftoverPortions] = useState(0);
 
   // Set by the effect below so click handlers can ask for a fresh copy.
   const reloadEvent = useRef<() => void>(() => {});
@@ -126,10 +135,27 @@ export function EventView({ id }: { id: string }) {
         });
     }
 
+    function loadLeftovers() {
+      if (!valid) return;
+      listOpenRescues().then(
+        (rescues) => {
+          if (!active) return;
+          const left = rescues
+            .filter((rescue) => rescue.eventId === id)
+            .reduce((sum, rescue) => sum + rescue.portionsLeft, 0);
+          setLeftoverPortions(left);
+        },
+        () => {
+          // The note is a bonus. The food page still lists everything.
+        },
+      );
+    }
+
     // Check-in updates the event row, so one signal refreshes the count and the ticket.
     function reload() {
       loadEvent();
       loadTicket();
+      loadLeftovers();
     }
 
     reloadEvent.current = loadEvent;
@@ -178,7 +204,6 @@ export function EventView({ id }: { id: string }) {
     return (
       <Shell>
         <Message title="Could not load this event">
-          <p className="text-sm text-muted-foreground">Check your connection and try again.</p>
           <Button onClick={retry}>Try again</Button>
         </Message>
       </Shell>
@@ -242,7 +267,16 @@ export function EventView({ id }: { id: string }) {
               >
                 {event.clubName.trim().charAt(0) || "?"}
               </span>
-              <span className="min-w-0 text-sm font-medium break-words">{event.clubName}</span>
+              {event.clubId ? (
+                <Link
+                  href={`/clubs/${event.clubId}`}
+                  className="min-w-0 rounded-sm text-sm font-medium break-words underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  {event.clubName}
+                </Link>
+              ) : (
+                <span className="min-w-0 text-sm font-medium break-words">{event.clubName}</span>
+              )}
             </p>
           </section>
 
@@ -263,12 +297,29 @@ export function EventView({ id }: { id: string }) {
         <div className="min-w-0 space-y-6">
           <div className="space-y-3">
             {(live || event.hasFood) && (
-              <div className="flex flex-wrap gap-1.5">
-                {live && <Badge>Happening now</Badge>}
-                {event.hasFood && (
-                  <Badge className="bg-accent text-accent-foreground">Free food</Badge>
+              <ul aria-label="Highlights" className="flex flex-wrap gap-1.5">
+                {live && (
+                  <li>
+                    <Badge>Happening now</Badge>
+                  </li>
                 )}
-              </div>
+                {event.hasFood && (
+                  <li>
+                    <Badge className="bg-accent text-accent-foreground">Free food</Badge>
+                  </li>
+                )}
+                {event.hasFood &&
+                  event.foodItems.map((item) => (
+                    <li key={item}>
+                      <Badge
+                        variant="outline"
+                        className="border-accent/50 bg-accent/10 capitalize"
+                      >
+                        {item}
+                      </Badge>
+                    </li>
+                  ))}
+              </ul>
             )}
             <h1 className="text-3xl leading-tight font-semibold tracking-tight text-balance break-words md:text-4xl">
               {event.title}
@@ -310,6 +361,25 @@ export function EventView({ id }: { id: string }) {
               </div>
             </div>
           </div>
+
+          {leftoverPortions > 0 && (
+            <Link
+              href="/food"
+              className="group flex items-center gap-2.5 rounded-lg border border-accent/50 bg-accent/10 px-3 py-2 text-sm font-medium outline-none transition-colors hover:bg-accent/20 focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <Utensils aria-hidden className="size-4 shrink-0 text-accent" />
+              <span className="min-w-0 flex-1 tabular-nums">
+                Leftover food: {leftoverPortions} {leftoverPortions === 1 ? "portion" : "portions"}
+              </span>
+              <span className="flex shrink-0 items-center gap-1">
+                Claim
+                <ArrowRight
+                  aria-hidden
+                  className="size-4 transition-transform duration-150 ease-out group-hover:translate-x-0.5 motion-reduce:transition-none"
+                />
+              </span>
+            </Link>
+          )}
 
           <RegistrationCard
             eventId={event.id}

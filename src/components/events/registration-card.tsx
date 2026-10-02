@@ -115,11 +115,12 @@ export function RegistrationCard({
             {goingLine}
           </div>
 
-          <TicketQr code={ticket.code} size={180} />
+          {/* Hidden once scanned, so the checked-in state is the thing you see. */}
+          {!ticket.checkedInAt && <TicketQr code={ticket.code} size={220} />}
 
           {ticket.checkedInAt ? (
-            <p className="flex items-center gap-1.5 text-sm font-medium tabular-nums">
-              <CircleCheck aria-hidden className="size-4 text-primary" />
+            <p className="flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground tabular-nums">
+              <CircleCheck aria-hidden className="size-4" />
               Checked in at {formatTime(ticket.checkedInAt)}
             </p>
           ) : (
@@ -167,7 +168,6 @@ export function RegistrationCard({
             {(busy || !ready) && <Spinner />}
             {busy ? "Registering…" : "Register"}
           </Button>
-          <p className="text-xs text-muted-foreground">Free. You get a QR ticket for the door.</p>
         </CardContent>
       )}
 
@@ -176,9 +176,7 @@ export function RegistrationCard({
           <form onSubmit={submitName} className="grid gap-4">
             <DialogHeader>
               <DialogTitle>What is your name?</DialogTitle>
-              <DialogDescription>
-                The host sees it on the guest list when you check in.
-              </DialogDescription>
+              <DialogDescription>Shown on the guest list.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-2">
               <Label htmlFor={nameId}>Full name</Label>

@@ -10,18 +10,18 @@ const linkClass =
 export function AttendanceList({ attended }: { attended: TicketWithEvent[] }) {
   if (attended.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed px-4 py-6 text-sm text-pretty text-muted-foreground">
-        Nothing here yet. An event shows up after a club scans your ticket at the door. Find
-        something on the{" "}
-        <Link href="/map" className={linkClass}>
-          map
-        </Link>
-        , or check{" "}
-        <Link href="/tickets" className={linkClass}>
-          your tickets
-        </Link>
-        .
-      </p>
+      <div className="flex flex-col items-start gap-2 rounded-xl border border-dashed px-4 py-6">
+        <p className="text-sm font-medium">No check-ins yet</p>
+        <p className="text-sm text-muted-foreground">
+          <Link href="/map" className={linkClass}>
+            Find an event
+          </Link>{" "}
+          or see{" "}
+          <Link href="/tickets" className={linkClass}>
+            your tickets
+          </Link>
+        </p>
+      </div>
     );
   }
 
