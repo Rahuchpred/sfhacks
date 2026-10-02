@@ -1,4 +1,5 @@
-// The email code sign-in used by the onboarding. A guest's anonymous account
+// The email sign-in used by the onboarding. The email holds a code or, while the
+// project uses Supabase's default template, a link that opens the welcome page. A guest's anonymous account
 // gets the email added to it, so their tickets and claims stay with them.
 import { isSfsuEmail } from "@/lib/roles";
 import { supabase } from "@/lib/supabase/client";
@@ -45,7 +46,7 @@ export async function demoSignInEnabled(): Promise<boolean> {
 
 export async function sendCode(
   email: string,
-  options: { demo: boolean; needsSfsu: boolean },
+  options: { demo: boolean; needsSfsu: boolean; redirectTo: string },
 ): Promise<CodeKind> {
   if (options.demo) {
     const response = await demoPost({ email }).catch(() => null);
@@ -55,14 +56,17 @@ export async function sendCode(
 
   const { data } = await supabase.auth.getSession();
   if (data.session && !data.session.user.email) {
-    const { error } = await supabase.auth.updateUser({ email });
+    const { error } = await supabase.auth.updateUser(
+      { email },
+      { emailRedirectTo: options.redirectTo },
+    );
     if (!error) return "email_change";
     if (error.code !== "email_exists" && !/already/i.test(error.message)) throw sendError(error);
   }
 
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { shouldCreateUser: true },
+    options: { shouldCreateUser: true, emailRedirectTo: options.redirectTo },
   });
   if (error) throw sendError(error);
   return "email";

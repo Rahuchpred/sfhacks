@@ -2,7 +2,7 @@
 // https://mobbin.com/flows/b91dcea0-af15-4792-9361-c6d4a645a982
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { CodeInput } from "@/components/onboarding/code-input";
 import { sendCode, verifyCode, type CodeKind } from "@/components/onboarding/sign-in";
@@ -22,10 +22,14 @@ type Props = {
   role: Role;
   // Demo emails are checked by our own route first, where that is turned on.
   demo: boolean;
+  // Where the link in the email lands: the welcome page, with the role kept.
+  redirectTo: string;
+  // The account's email once it has one. It appears when the link is opened.
+  signedInEmail: string | null;
   onSignedIn: () => Promise<void>;
 };
 
-export function EmailStep({ role, demo, onSignedIn }: Props) {
+export function EmailStep({ role, demo, redirectTo, signedInEmail, onSignedIn }: Props) {
   const needsSfsu = roleNeedsSfsuEmail(role);
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
@@ -44,6 +48,15 @@ export function EmailStep({ role, demo, onSignedIn }: Props) {
     return () => clearInterval(timer);
   }, [sent]);
 
+  // The link in the email was opened, here or in another tab: carry on.
+  const linked = sent !== null && sent.kind !== "demo" && signedInEmail === sent.email;
+  const linkDone = useRef(false);
+  useEffect(() => {
+    if (!linked || linkDone.current) return;
+    linkDone.current = true;
+    void onSignedIn();
+  }, [linked, onSignedIn]);
+
   // Instant checks. A demo email is the one case the server has to answer.
   function check(value: string): string | null {
     if (!isEmail(value)) return "Enter your email.";
@@ -54,7 +67,7 @@ export function EmailStep({ role, demo, onSignedIn }: Props) {
   async function send(target: string) {
     setSending(true);
     try {
-      const kind = await sendCode(target, { demo, needsSfsu });
+      const kind = await sendCode(target, { demo, needsSfsu, redirectTo });
       setSent({ email: target, kind, at: Date.now() });
       setNow(Date.now());
       setCode("");
@@ -134,7 +147,10 @@ export function EmailStep({ role, demo, onSignedIn }: Props) {
         <h1 id="welcome-code-label" className="text-2xl font-semibold tracking-tight text-balance">
           Enter the code
         </h1>
-        <p className="text-sm break-words text-muted-foreground">Sent to {sent.email}</p>
+        <p className="text-sm break-words text-muted-foreground">
+          Sent to {sent.email}
+          {sent.kind !== "demo" && ". No code in the email? Open its link instead."}
+        </p>
       </div>
 
       <div className="flex flex-col gap-2">
@@ -148,14 +164,14 @@ export function EmailStep({ role, demo, onSignedIn }: Props) {
           labelledBy="welcome-code-label"
           describedBy="welcome-code-status"
           invalid={Boolean(codeError)}
-          disabled={verifying}
+          disabled={verifying || linked}
         />
         <p
           id="welcome-code-status"
           aria-live="polite"
           className="flex min-h-5 items-center gap-1.5 text-sm text-muted-foreground"
         >
-          {verifying && (
+          {(verifying || linked) && (
             <>
               <Loader2 aria-hidden className="size-3.5 animate-spin motion-reduce:animate-none" />
               Checking

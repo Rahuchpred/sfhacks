@@ -2,7 +2,7 @@
 // on the page. https://mobbin.com/flows/4ad8acc8-87b1-4bf6-9a97-58aff989c810
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -19,10 +19,17 @@ import { landingPath } from "@/lib/roles";
 import type { Profile, Role } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+// The address the email link opens: this page, with the role and return path.
+function linkTarget(role: Role, next: string | null): string {
+  const params = new URLSearchParams({ role });
+  if (next) params.set("next", next);
+  return `${window.location.origin}/welcome?${params}`;
+}
+
 type Step = "role" | "email" | "details";
 const STEPS: Step[] = ["role", "email", "details"];
 
-export function WelcomeFlow({ next }: { next: string | null }) {
+export function WelcomeFlow({ next, linkRole }: { next: string | null; linkRole: Role | null }) {
   const router = useRouter();
   const { user, profile, role, ready, refreshProfile, signOut } = useAuth();
   // Null until the visitor moves: the first step then follows from the account.
@@ -87,6 +94,17 @@ export function WelcomeFlow({ next }: { next: string | null }) {
     await refreshProfile(saved);
     router.replace(landingPath(saved.role ?? role ?? "student", next));
   }
+
+  // Arriving from the link in the email: the account now has an email and the
+  // role chosen before is in the address, so pick up where the visitor left.
+  const linkUsed = useRef(false);
+  useEffect(() => {
+    if (!ready || linkUsed.current || !linkRole || role || !user?.email || step !== null) return;
+    linkUsed.current = true;
+    void claimRole(linkRole);
+    // claimRole is stable enough here: it only reads `next` and the router.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, linkRole, role, user?.email, step]);
 
   const position = current ? STEPS.indexOf(current) : 0;
 
@@ -175,7 +193,13 @@ export function WelcomeFlow({ next }: { next: string | null }) {
               </div>
             )}
             {current === "email" && choice && (
-              <EmailStep role={choice} demo={demo} onSignedIn={() => claimRole(choice)} />
+              <EmailStep
+                role={choice}
+                demo={demo}
+                redirectTo={linkTarget(choice, next)}
+                signedInEmail={user?.email ?? null}
+                onSignedIn={() => claimRole(choice)}
+              />
             )}
             {current === "details" && role && (
               <DetailsStep role={role} profile={profile} onDone={finish} />

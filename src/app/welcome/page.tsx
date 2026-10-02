@@ -5,6 +5,9 @@ import { safeNext } from "@/lib/roles";
 export const metadata: Metadata = { title: "Sign in | Gator Radar" };
 
 export default async function WelcomePage({ searchParams }: PageProps<"/welcome">) {
-  const { next } = await searchParams;
-  return <WelcomeFlow next={safeNext(typeof next === "string" ? next : null)} />;
+  const { next, role } = await searchParams;
+  const linkRole = role === "student" || role === "faculty" || role === "recruiter" ? role : null;
+  return (
+    <WelcomeFlow next={safeNext(typeof next === "string" ? next : null)} linkRole={linkRole} />
+  );
 }
