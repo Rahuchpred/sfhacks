@@ -267,6 +267,7 @@ Rules:
 - "summary": one or two neutral sentences on what kind of incident happened, where and when, and what University Police are doing.
 - The summary must NOT describe any person: no clothing, appearance, race, age or gender of a suspect, and nothing about the victim beyond "a community member". Leave out graphic detail.
 - "sensitive": true for sexual assault, sexual battery, stalking, domestic or dating violence, and anything inside a residence hall. Otherwise false.
+- For a sensitive notice, the summary and "area" must not name a building, street or route. Say only "on campus" or "near campus".
 - Use only what the page says. Never invent a detail.
 
 Reply with only this JSON object, no other text:

@@ -52,8 +52,9 @@ export async function POST() {
         category: notice.category,
         title: notice.title,
         summary: notice.summary,
-        area: notice.area,
-        building_id: buildingId,
+        // Sensitive notices carry no precise place at all.
+        area: notice.sensitive ? "" : notice.area,
+        building_id: notice.sensitive ? null : buildingId,
         // Sensitive notices are listed but never pinned to a place.
         show_pin: !notice.sensitive && buildingId !== null,
         occurred_on: occurredOn,
