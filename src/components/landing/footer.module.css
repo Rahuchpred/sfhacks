@@ -1,12 +1,12 @@
-/* The product name set across the full width of the footer: a purple outline
+/* The product name set across the full width of the footer: a lilac outline on the dark page
    that fades out toward the bottom. A second copy on top is filled with light
    around the pointer (--gx, --gy, set by footer.tsx): a gold core inside
-   SF State purple. */
+   SF State lilac. */
 .giant {
-  --g-line: rgba(70, 48, 119, 0.28);
+  --g-line: rgba(160, 142, 208, 0.3);
   --g-1: #c99700;
-  --g-2: #463077;
-  --g-3: rgba(70, 48, 119, 0.3);
+  --g-2: #7a66ad;
+  --g-3: rgba(122, 102, 173, 0.25);
 
   position: relative;
   container-type: inline-size;

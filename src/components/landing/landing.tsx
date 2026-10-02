@@ -11,7 +11,7 @@ export function Landing() {
   const campus = useCampus();
 
   return (
-    <div className="flex min-h-full flex-col bg-background">
+    <div className="flex min-h-full flex-col bg-[#1b1530]">
       <Hero events={campus.events} />
       <FeatureGrid {...campus} />
       <Footer />

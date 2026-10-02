@@ -62,8 +62,8 @@ export function Footer() {
   }, []);
 
   return (
-    <footer className="mt-auto overflow-hidden border-t">
-      <div className="mx-auto w-full max-w-5xl px-5 pt-10 sm:px-8">
+    <footer className="mt-auto overflow-hidden border-t border-white/10 bg-[#1b1530] text-white">
+      <div className="mx-auto w-full max-w-6xl px-5 pt-10 sm:px-8">
         <div className="flex flex-wrap items-center justify-between gap-x-10 gap-y-5">
           <span className="flex items-center gap-2.5 text-[0.9375rem] font-semibold tracking-tight">
             <span className="flex size-6 items-center justify-center rounded-md bg-primary">
@@ -77,7 +77,7 @@ export function Footer() {
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="rounded-sm text-sm text-muted-foreground transition-colors duration-150 hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                    className="rounded-sm text-sm text-white/60 transition-colors duration-150 hover:text-white focus-visible:ring-3 focus-visible:ring-white/40 focus-visible:outline-none"
                   >
                     {link.label}
                   </Link>
@@ -86,7 +86,7 @@ export function Footer() {
             </ul>
           </nav>
         </div>
-        <p className="mt-5 text-sm text-muted-foreground">Built at SF Hacks for SF State.</p>
+        <p className="mt-5 text-sm text-white/50">Built at SF Hacks for SF State.</p>
 
         <div ref={giantRef} className={styles.giant} aria-hidden translate="no">
           <span className={styles.line}>Gator Radar</span>

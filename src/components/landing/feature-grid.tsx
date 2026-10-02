@@ -15,10 +15,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { Building, CampusEvent, FoodRescue, TicketWithEvent } from "@/lib/types";
 
-// Mobbin reference: Perplexity's welcome cards (a piece of real UI on a tinted
-// panel, then a title and one line). Layout follows the feature grid on
-// obsidian.md. Every visual is the real component with live data, shown
-// read-only: the panel is inert and the whole card is one link.
+// Mobbin references: Assembly's resources bento (one large dark card beside
+// smaller ones) and Luma AI's feature cards (title and one line at the top,
+// the product piece below, cropped by the card). The section keeps the hero's
+// ink background so the page reads as one piece. Every visual is the real
+// component with live data, shown read-only on a light "window" inside the
+// dark card: the window is inert and the whole card is one link.
 
 const EmbeddedMap = dynamic(() => import("./embedded-map"), {
   ssr: false,
@@ -35,57 +37,62 @@ type FeatureGridProps = {
 
 export function FeatureGrid({ buildings, events, rescues, loading, error }: FeatureGridProps) {
   return (
-    <section
-      aria-label="Features"
-      className="mx-auto w-full max-w-6xl px-5 py-20 sm:px-8 sm:py-28"
-    >
-      <ul className="grid gap-4 md:grid-cols-3">
-        <FeatureCard
-          href="/map"
-          title="Live campus map"
-          line="Every event, pinned to its building."
-          className="md:col-span-3"
-          panelClass="h-72 sm:h-[26rem]"
+    <section aria-labelledby="features-title" className="bg-[#1b1530] text-white">
+      <div className="mx-auto w-full max-w-6xl px-5 py-24 sm:px-8 sm:py-32">
+        <h2
+          id="features-title"
+          className="max-w-2xl text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-5xl"
         >
-          <MapPanel buildings={buildings} events={events} rescues={rescues} />
-        </FeatureCard>
+          One place for campus life.
+        </h2>
 
-        <FeatureCard
-          href="/food"
-          title="Free leftover food"
-          line="Claim a portion, pick it up with a code."
-          fade
-        >
-          <FoodPanel
-            buildings={buildings}
-            events={events}
-            rescues={rescues}
-            loading={loading}
-            error={error}
-          />
-        </FeatureCard>
+        <ul className="mt-12 grid gap-4 sm:mt-16 md:grid-cols-3">
+          <FeatureCard
+            href="/map"
+            title="Live campus map"
+            line="Every event, pinned to its building."
+            className="md:col-span-2"
+            bleed
+          >
+            <MapPanel buildings={buildings} events={events} rescues={rescues} />
+          </FeatureCard>
 
-        <FeatureCard
-          href="/tickets"
-          title="QR check-in"
-          line="Your ticket scans at the door."
-          label="Sample ticket"
-        >
-          <div className="flex h-full items-center justify-center">
-            <TicketQr code="GATOR123" size={132} />
-          </div>
-        </FeatureCard>
+          <FeatureCard
+            href="/food"
+            title="Free leftover food"
+            line="Claim a portion, pick it up with a code."
+          >
+            <FoodPanel
+              buildings={buildings}
+              events={events}
+              rescues={rescues}
+              loading={loading}
+              error={error}
+            />
+          </FeatureCard>
 
-        <FeatureCard
-          href="/profile"
-          title="A profile that builds itself"
-          line="Each check-in adds to it."
-          label="Sample"
-          fade
-        >
-          <ProfilePanel events={events} />
-        </FeatureCard>
-      </ul>
+          <FeatureCard
+            href="/tickets"
+            title="QR check-in"
+            line="Your ticket scans at the door."
+            label="Sample ticket"
+          >
+            <div className="flex h-full items-center justify-center pb-4">
+              <TicketQr code="GATOR123" size={132} />
+            </div>
+          </FeatureCard>
+
+          <FeatureCard
+            href="/profile"
+            title="A profile that builds itself"
+            line="Each check-in adds to it."
+            label="Sample"
+            className="md:col-span-2"
+          >
+            <ProfilePanel events={events} />
+          </FeatureCard>
+        </ul>
+      </div>
     </section>
   );
 }
@@ -95,53 +102,59 @@ function FeatureCard({
   title,
   line,
   label,
-  fade = false,
+  bleed = false,
   className,
-  panelClass = "h-80",
   children,
 }: {
   href: string;
   title: string;
   line: string;
-  label?: string; // marks a panel that shows sample data
-  fade?: boolean; // the panel crops a taller piece of UI, so soften the cut
+  label?: string; // marks a window that shows sample data
+  bleed?: boolean; // the window runs to the card's edges (the map)
   className?: string;
-  panelClass?: string;
   children: React.ReactNode;
 }) {
   return (
     <li
       className={cn(
-        "group relative overflow-hidden rounded-2xl border bg-card transition-[border-color,scale] duration-150 ease-out focus-within:ring-3 focus-within:ring-ring/50 hover:border-primary/40 active:scale-[0.995] motion-reduce:transition-none",
+        "group relative flex h-[26rem] flex-col overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] transition-[border-color,background-color,scale] duration-200 ease-out focus-within:ring-3 focus-within:ring-white/40 hover:border-white/25 hover:bg-white/[0.06] active:scale-[0.995] motion-reduce:transition-none",
         className,
       )}
     >
-      <div className={cn("relative overflow-hidden border-b bg-muted/60", panelClass)}>
+      <div className="px-6 pt-6 pb-5">
+        <h3 className="text-lg font-medium tracking-tight">
+          {/* The link stretches over the whole card. */}
+          <Link href={href} className="outline-none after:absolute after:inset-0">
+            {title}
+          </Link>
+        </h3>
+        <p className="mt-1 text-[0.9375rem] text-white/60">{line}</p>
+      </div>
+
+      {/* The light window. It lifts a little when the card is hovered. */}
+      <div
+        className={cn(
+          "relative min-h-0 flex-1 overflow-hidden bg-[#f8f7fb] text-foreground transition-transform duration-200 ease-out group-hover:-translate-y-1 motion-reduce:transition-none motion-reduce:group-hover:translate-y-0",
+          bleed ? "border-t border-white/10" : "mx-6 rounded-t-lg",
+        )}
+      >
         {/* Read-only: nothing inside takes focus, clicks or scroll. */}
         <div inert className="pointer-events-none size-full select-none">
           {children}
         </div>
-        {fade && (
-          <div
-            aria-hidden
-            className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#f8f7fb] to-transparent"
-          />
-        )}
         {label && (
           <Badge variant="outline" className="absolute top-3 left-3 bg-background">
             {label}
           </Badge>
         )}
       </div>
-      <div className="px-5 py-4">
-        <h2 className="text-[0.9375rem] font-medium">
-          {/* The link stretches over the whole card. */}
-          <Link href={href} className="outline-none after:absolute after:inset-0">
-            {title}
-          </Link>
-        </h2>
-        <p className="mt-0.5 text-sm text-muted-foreground">{line}</p>
-      </div>
+      {/* Softens the cut where the card crops the window. */}
+      {!bleed && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#1b1530]/55 to-transparent"
+        />
+      )}
     </li>
   );
 }
@@ -185,7 +198,7 @@ function FoodPanel({ buildings, events, rescues, loading, error }: FeatureGridPr
 
   if (loading) {
     return (
-      <div className="mx-auto w-64 pt-6">
+      <div className="mx-auto w-64 pt-5">
         <Skeleton className="h-72 w-full rounded-xl" />
       </div>
     );
@@ -201,7 +214,7 @@ function FoodPanel({ buildings, events, rescues, loading, error }: FeatureGridPr
     );
   }
   return (
-    <div className="mx-auto w-64 pt-6 text-sm">
+    <div className="mx-auto w-64 pt-5 text-sm">
       <RescueCard
         rescue={rescue}
         building={buildings.find((building) => building.id === rescue.buildingId)}
@@ -235,7 +248,7 @@ function ProfilePanel({ events }: { events: CampusEvent[] }) {
   );
 
   return (
-    <div className="min-w-[21rem] space-y-3 px-4 pt-12">
+    <div className="min-w-[21rem] space-y-3 px-5 pt-12">
       <StatsRow stats={attendanceStats(sample)} />
       <AttendanceList attended={sample} />
     </div>
