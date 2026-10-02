@@ -65,20 +65,29 @@ export type Database = {
       }
       claims: {
         Row: {
+          code: string
           created_at: string
+          expires_at: string
           id: string
+          picked_up_at: string | null
           rescue_id: string
           uid: string
         }
         Insert: {
+          code?: string
           created_at?: string
+          expires_at?: string
           id?: string
+          picked_up_at?: string | null
           rescue_id: string
           uid: string
         }
         Update: {
+          code?: string
           created_at?: string
+          expires_at?: string
           id?: string
+          picked_up_at?: string | null
           rescue_id?: string
           uid?: string
         }
@@ -92,16 +101,92 @@ export type Database = {
           },
         ]
       }
+      club_invites: {
+        Row: {
+          club_id: string
+          code: string
+        }
+        Insert: {
+          club_id: string
+          code?: string
+        }
+        Update: {
+          club_id?: string
+          code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_invites_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: true
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      club_members: {
+        Row: {
+          club_id: string
+          joined_at: string
+          role: string
+          uid: string
+        }
+        Insert: {
+          club_id: string
+          joined_at?: string
+          role?: string
+          uid: string
+        }
+        Update: {
+          club_id?: string
+          joined_at?: string
+          role?: string
+          uid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_members_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clubs: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       events: {
         Row: {
           building_id: string
           checked_in_count: number
+          club_id: string | null
           club_name: string
+          cost: number | null
           created_at: string
           created_by: string | null
           description: string
           ends_at: string
           flyer_url: string | null
+          food_items: string[]
           has_food: boolean
           id: string
           room: string | null
@@ -114,12 +199,15 @@ export type Database = {
         Insert: {
           building_id: string
           checked_in_count?: number
+          club_id?: string | null
           club_name?: string
+          cost?: number | null
           created_at?: string
           created_by?: string | null
           description?: string
           ends_at: string
           flyer_url?: string | null
+          food_items?: string[]
           has_food?: boolean
           id?: string
           room?: string | null
@@ -132,12 +220,15 @@ export type Database = {
         Update: {
           building_id?: string
           checked_in_count?: number
+          club_id?: string | null
           club_name?: string
+          cost?: number | null
           created_at?: string
           created_by?: string | null
           description?: string
           ends_at?: string
           flyer_url?: string | null
+          food_items?: string[]
           has_food?: boolean
           id?: string
           room?: string | null
@@ -153,6 +244,13 @@ export type Database = {
             columns: ["building_id"]
             isOneToOne: false
             referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
             referencedColumns: ["id"]
           },
         ]
@@ -311,6 +409,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_manage_event: { Args: { p_event_id: string }; Returns: boolean }
       cancel_rsvp: { Args: { p_event_id: string }; Returns: boolean }
       check_in: {
         Args: { p_code: string }
@@ -322,13 +421,57 @@ export type Database = {
           reason: string
         }[]
       }
+      check_in_guest: {
+        Args: { p_rsvp_id: string }
+        Returns: {
+          checked_in_at: string
+          event_id: string
+          guest_name: string
+          ok: boolean
+          reason: string
+        }[]
+      }
       claim_portion: {
         Args: { p_rescue_id: string }
         Returns: {
+          claim_code: string
+          expires_at: string
           ok: boolean
           portions_left: number
           reason: string
         }[]
+      }
+      club_roster: {
+        Args: { p_club_id: string }
+        Returns: {
+          joined_at: string
+          member_name: string
+          role: string
+          uid: string
+        }[]
+      }
+      confirm_pickup: {
+        Args: { p_code: string; p_rescue_id: string }
+        Returns: {
+          guest_name: string
+          ok: boolean
+          reason: string
+        }[]
+      }
+      create_club: {
+        Args: { p_name: string }
+        Returns: {
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "clubs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       event_guests: {
         Args: { p_event_id: string }
@@ -338,6 +481,47 @@ export type Database = {
           guest_name: string
           rsvp_id: string
           sfsu_verified: boolean
+        }[]
+      }
+      host_attendance: {
+        Args: never
+        Returns: {
+          checked_in_at: string
+          event_id: string
+          grad_year: number
+          guest_id: string
+          guest_name: string
+          major: string
+          registered_at: string
+          rsvp_id: string
+          sfsu_verified: boolean
+        }[]
+      }
+      is_club_member: { Args: { p_club_id: string }; Returns: boolean }
+      join_club: {
+        Args: { p_code: string }
+        Returns: {
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "clubs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      release_expired_claims: { Args: never; Returns: number }
+      rescue_claims: {
+        Args: { p_rescue_id: string }
+        Returns: {
+          claim_id: string
+          created_at: string
+          expires_at: string
+          guest_name: string
+          picked_up_at: string
         }[]
       }
       rsvp_event: {

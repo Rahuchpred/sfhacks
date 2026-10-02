@@ -68,6 +68,15 @@ These calls take 10 to 25 seconds. Always show a loading state.
 - Desktop website first: top nav, full-width pages. Layouts must still stack cleanly on a phone.
 - Components come from `src/components/ui` (shadcn). Add new ones with `npx shadcn@latest add <name>`.
 
+## Round 3 additions
+
+See `docs/plans/20-round3-overview.md` for the full list of new data functions (clubs, pickup codes, event-linked food, analytics rows) and the current ownership split.
+
+- `createRescue` needs `eventId` set to an event the user manages. The database rejects anything else
+- `claimPortion` returns `claimCode` and `expiresAt`. A hold lasts 15 minutes unless `confirmPickup` is called by the poster
+- `listMyClaims()` now returns `MyClaim[]`, not ids
+- `checkEventDraft()` in `src/lib/checks.ts` is safe to run in the browser for instant validation
+
 ## Folder ownership
 
-See `docs/plans/10-round2-overview.md` for the current split (Student, Host, Main) and the list of frozen files.
+See `docs/plans/20-round3-overview.md`.

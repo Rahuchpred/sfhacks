@@ -112,3 +112,17 @@ export function missingFields(event: EventDraft): string[] {
   const required: (keyof EventDraft)[] = ["title", "buildingId", "startsAt", "endsAt"];
   return required.filter((field) => !event[field]);
 }
+
+// What food is usually at campus events. Chosen with chips on the event form.
+export const FOOD_OPTIONS = [
+  "pizza",
+  "donuts",
+  "sandwiches",
+  "boba",
+  "coffee",
+  "chips and snacks",
+  "sweets",
+  "fruit",
+  "water and drinks",
+  "full meal",
+] as const;
