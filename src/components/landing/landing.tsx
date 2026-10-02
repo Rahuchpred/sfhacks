@@ -1,111 +1,52 @@
-"use client";
-
 import Link from "next/link";
-import { ArrowRight, Utensils } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useCampus } from "@/lib/use-campus";
-import { EventStrip } from "./event-strip";
-import { HeroPreview } from "./hero-preview";
-import { HowItWorks } from "./how-it-works";
-import { LiveNumbers } from "./live-numbers";
-import { RadarRings } from "./radar-rings";
+import { FeatureGrid } from "./feature-grid";
+import { Footer } from "./footer";
+import { LiveCount } from "./live-count";
+
+// Mobbin reference: Cursor's marketing home (one left-aligned headline, one
+// line, one dark button, then feature blocks) and Perplexity's welcome screen
+// (cards with a small UI visual above a title and one line).
 
 export function Landing() {
-  const { buildings, events, rescues, loading, error } = useCampus();
-  const showFoodBand = !loading && !error && rescues.length > 0;
-
   return (
     <div className="flex min-h-full flex-col bg-background">
-      <section className="relative overflow-hidden">
-        <RadarRings className="absolute top-1/2 -right-40 hidden w-[36rem] -translate-y-1/2 md:block lg:-right-16" />
-        <div className="relative mx-auto grid w-full max-w-6xl items-center gap-12 px-5 pt-14 pb-16 sm:px-8 sm:pt-20 sm:pb-20 lg:grid-cols-[minmax(0,1fr)_26rem] lg:pt-24 lg:pb-24">
-          <div className="min-w-0">
-            <p className="flex items-center gap-2 text-sm font-medium text-primary">
-              <span aria-hidden className="size-2 rounded-full bg-accent" />
-              Gator Radar, for SF State
-            </p>
-            <h1 className="mt-5 text-5xl leading-[0.95] font-semibold tracking-tighter text-balance lowercase sm:text-6xl lg:text-7xl">
-              <span className="block">see what&apos;s on.</span>
-              <span className="block">show up.</span>
-              <span className="block text-primary">get noticed.</span>
-            </h1>
-            <p className="mt-6 max-w-md text-base text-pretty text-muted-foreground sm:text-lg">
-              Every club event and free food drop at SF State, on one map. Each
-              check-in builds your profile.
-            </p>
-            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
-              <Link
-                href="/map"
-                className={cn(
-                  buttonVariants({ size: "lg" }),
-                  "h-12 gap-2 px-6 text-base",
-                )}
-              >
-                Open the map
-                <ArrowRight aria-hidden className="size-4" />
-              </Link>
-              <Link
-                href="/post"
-                className="rounded-sm text-sm font-medium text-muted-foreground underline underline-offset-4 hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-              >
-                Posting for a club?
-              </Link>
-            </div>
-            <div className="mt-12 min-h-[4.25rem]">
-              <LiveNumbers
-                eventCount={events.length}
-                rescueCount={rescues.length}
-                loading={loading}
-                error={error}
-              />
-            </div>
-          </div>
-
-          {!error && (
-            <HeroPreview
-              buildings={buildings}
-              events={events}
-              loading={loading}
+      <section className="mx-auto w-full max-w-5xl px-5 pt-20 pb-16 sm:px-8 sm:pt-28 sm:pb-20 lg:pt-36">
+        <LiveCount />
+        <h1 className="mt-5 max-w-3xl text-4xl leading-[1.05] font-semibold tracking-tight text-balance sm:text-6xl">
+          See what&apos;s on at SF State.
+        </h1>
+        <p className="mt-5 max-w-xl text-lg text-pretty text-muted-foreground sm:text-xl">
+          Every club event and free food drop, on one map.
+        </p>
+        <div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-4">
+          <Link
+            href="/map"
+            className={cn(
+              buttonVariants({ size: "lg" }),
+              "group h-11 gap-2 rounded-full px-5 text-[0.9375rem] transition-[background-color,scale] duration-150 ease-out active:scale-[0.97] motion-reduce:transition-none",
+            )}
+          >
+            Open the map
+            <ArrowRight
+              aria-hidden
+              className="size-4 transition-transform duration-200 ease-out group-hover:translate-x-0.5 motion-reduce:transition-none"
             />
-          )}
+          </Link>
+          <Link
+            href="/post"
+            className="rounded-sm text-sm font-medium text-muted-foreground underline-offset-4 transition-colors duration-150 hover:text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+          >
+            Posting for a club?
+          </Link>
         </div>
       </section>
 
-      {showFoodBand && (
-        <Link
-          href="/food"
-          className="group block bg-accent text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset"
-        >
-          <span className="mx-auto flex w-full max-w-6xl items-center gap-2.5 px-5 py-3.5 text-sm font-semibold sm:px-8 sm:text-base">
-            <Utensils aria-hidden className="size-4 shrink-0" />
-            <span className="min-w-0 tabular-nums">
-              Free food right now: {rescues.length}{" "}
-              {rescues.length === 1 ? "post" : "posts"}
-            </span>
-            <ArrowRight
-              aria-hidden
-              className="ml-auto size-4 shrink-0 transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none"
-            />
-          </span>
-        </Link>
-      )}
+      <FeatureGrid />
 
-      <HowItWorks />
-
-      <EventStrip
-        buildings={buildings}
-        events={events}
-        loading={loading}
-        error={error}
-      />
-
-      <footer className="mt-auto border-t">
-        <p className="mx-auto flex w-full max-w-6xl items-center gap-2 px-5 py-6 text-sm text-muted-foreground sm:px-8">
-          <span aria-hidden className="size-1.5 rounded-full bg-accent" />
-          Built at SF Hacks 2026 for SF State.
-        </p>
-      </footer>
+      <Footer />
     </div>
   );
 }
