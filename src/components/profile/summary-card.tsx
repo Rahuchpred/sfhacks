@@ -19,12 +19,16 @@ type Props = {
   onSaved: (profile: Profile) => void;
 };
 
-// The first summary writes itself, once per browser session, so a reload never re-runs the AI.
+// Automatic writing is off: the summary costs a slow AI call, so it only runs when the
+// student asks. Set AUTO_WRITE to true to write the first one by itself, once per session.
+const AUTO_WRITE = false;
+
 function autoKey(profileId: string) {
   return `gator-radar:summary-auto:${profileId}`;
 }
 
 function shouldAutoWrite(profile: Profile | null, attended: TicketWithEvent[]) {
+  if (!AUTO_WRITE) return false;
   if (!profile || !profile.fullName.trim() || profile.aiSummary?.trim()) return false;
   if (attended.length === 0) return false;
   try {

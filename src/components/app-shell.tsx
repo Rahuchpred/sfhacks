@@ -90,6 +90,21 @@ function isActive(pathname: string, item: NavItem): boolean {
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
+// Titles for pages that are not sidebar rows, or that sit under one.
+const TITLES: [RegExp, string][] = [
+  [/^\/profile/, "Profile"],
+  [/^\/events\//, "Event"],
+  [/^\/clubs\/[^/]+/, "Club"],
+  [/^\/host\/[^/]+\/check-in/, "Check in"],
+  [/^\/host\/[^/]+\/food/, "Leftover food"],
+  [/^\/host\/(?!clubs|analytics)[^/]+$/, "Manage event"],
+  [/^\/help\/(?!new|mine)[^/]+/, "Help request"],
+];
+
+function pageTitle(pathname: string): string | null {
+  return TITLES.find(([pattern]) => pattern.test(pathname))?.[1] ?? null;
+}
+
 function NavLinks() {
   const pathname = usePathname();
   const { setOpenMobile } = useSidebar();
@@ -126,7 +141,7 @@ function NavLinks() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const current = ALL_ITEMS.find((item) => isActive(pathname, item));
-  const title = current?.label ?? (pathname.startsWith("/profile") ? "Profile" : "");
+  const title = pageTitle(pathname) ?? current?.label ?? "";
 
   // The landing page is a marketing page: it runs full width with no sidebar.
   if (pathname === "/") {

@@ -26,7 +26,7 @@ export function Legend({ events }: { events: CampusEvent[] }) {
   return (
     <div
       className={cn(
-        "absolute bottom-3 left-3 z-10 max-w-[calc(100%-5rem)] rounded-lg border bg-background/95 shadow-md backdrop-blur-sm",
+        "absolute bottom-10 left-3 z-10 md:bottom-3 max-w-[calc(100%-5rem)] rounded-lg border bg-background/95 shadow-md backdrop-blur-sm",
         open === null ? "w-28 md:w-44" : open ? "w-44" : "w-28",
       )}
     >

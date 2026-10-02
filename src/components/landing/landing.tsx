@@ -12,7 +12,7 @@ export function Landing() {
 
   return (
     <div className="flex min-h-full flex-col bg-background">
-      <Hero buildings={campus.buildings} events={campus.events} rescues={campus.rescues} />
+      <Hero events={campus.events} />
       <FeatureGrid {...campus} />
       <Footer />
     </div>

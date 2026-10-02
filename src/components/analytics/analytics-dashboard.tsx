@@ -376,19 +376,20 @@ export function AnalyticsDashboard() {
           {analytics.food.foodEvents > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm font-medium">Food left over</CardTitle>
+                <CardTitle className="text-sm font-medium">Food you over-ordered</CardTitle>
               </CardHeader>
               <CardContent className="space-y-1.5 text-sm">
                 <p>
                   <span className="text-2xl font-semibold tabular-nums">
                     {analytics.food.avgLeftover}
                   </span>{" "}
-                  portions left on average, across {analytics.food.foodEvents}{" "}
-                  {analytics.food.foodEvents === 1 ? "event" : "events"}.
+                  extra portions per event, on average across {analytics.food.foodEvents}{" "}
+                  {analytics.food.foodEvents === 1 ? "event" : "events"} with leftovers.
                 </p>
                 <p className="text-muted-foreground">
-                  {t.portionsClaimed} of {t.leftoverPortions} leftover portions went to students.
-                  Order about {Math.round(analytics.food.avgLeftover ?? 0)} fewer next time.
+                  Students rescued {t.portionsClaimed} of the {t.leftoverPortions} you posted. You
+                  ordered about {Math.round(analytics.food.avgLeftover ?? 0)} more than people ate,
+                  so order that many fewer next time.
                 </p>
               </CardContent>
             </Card>

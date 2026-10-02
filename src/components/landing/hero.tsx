@@ -1,69 +1,72 @@
 "use client";
 
-import { useMemo } from "react";
 import Link from "next/link";
+import Aurora from "@/components/reactbits/Aurora";
+import LightRays from "@/components/reactbits/LightRays";
+import Particles from "@/components/reactbits/Particles";
+import Threads from "@/components/reactbits/Threads";
 import { cn } from "@/lib/utils";
-import type { Building, CampusEvent, FoodRescue } from "@/lib/types";
+import type { CampusEvent } from "@/lib/types";
 import { LiveCount } from "./live-count";
-import { RadarCanvas, type RadarPalette } from "./radar-canvas";
 
-// Mobbin reference: Cursor's marketing home for the restraint (one headline,
-// one line). Structure after tenseidesign.com: a full-screen hero with the
-// text dead center, two buttons and quiet activity behind. The activity here
-// is our own: a radar sweeping the real campus.
+// Structure after tenseidesign.com: a full-screen hero with the text dead
+// center, two buttons and quiet activity behind. The activity is a ready-made
+// background from React Bits (reactbits.dev, MIT + Commons Clause), recolored
+// to SF State purple and gold. Change BACKGROUND to try another one.
+const BACKGROUND: "aurora" | "threads" | "rays" | "particles" = "aurora";
 
-// Flip this one constant to make the hero light.
-const HERO_THEME: "dark" | "light" = "dark";
+const PURPLE = "#463077";
+const LILAC = "#7a66ad";
+const GOLD = "#c99700";
 
-type Theme = {
-  section: string;
-  muted: string;
-  fade: string; // CSS color behind the headline, same as the background
-  primary: string;
-  secondary: string;
-  radar: RadarPalette;
-};
+function HeroBackground() {
+  switch (BACKGROUND) {
+    case "aurora":
+      return <Aurora colorStops={[PURPLE, GOLD, LILAC]} amplitude={1.1} blend={0.6} speed={0.6} />;
+    case "threads":
+      return <Threads color={[0.63, 0.56, 0.82]} amplitude={1.2} distance={0.2} enableMouseInteraction />;
+    case "rays":
+      return (
+        <LightRays
+          raysOrigin="top-center"
+          raysColor={LILAC}
+          raysSpeed={0.8}
+          lightSpread={1.1}
+          rayLength={1.6}
+          followMouse
+          mouseInfluence={0.08}
+        />
+      );
+    case "particles":
+      return (
+        <Particles
+          particleColors={["#ffffff", LILAC, GOLD]}
+          particleCount={260}
+          particleSpread={10}
+          speed={0.08}
+          particleBaseSize={90}
+          alphaParticles
+          moveParticlesOnHover
+        />
+      );
+  }
+}
 
-const THEMES: Record<"dark" | "light", Theme> = {
-  dark: {
-    section: "bg-[#1b1530] text-white",
-    muted: "text-white/70",
-    fade: "#1b1530",
-    primary: "bg-accent text-accent-foreground hover:bg-[#dcaa14]",
-    secondary: "border border-white/25 text-white hover:border-white/50 hover:bg-white/5",
-    radar: { sweep: "#7a66ad", ring: "#ffffff", event: "#a08fd0", food: "#c99700" },
-  },
-  light: {
-    section: "bg-background text-foreground",
-    muted: "text-muted-foreground",
-    fade: "#ffffff",
-    primary: "bg-primary text-primary-foreground hover:bg-primary/85",
-    secondary: "border border-border text-foreground hover:border-primary/40 hover:bg-muted",
-    radar: { sweep: "#7a66ad", ring: "#463077", event: "#463077", food: "#c99700" },
-  },
+const theme = {
+  section: "bg-[#1b1530] text-white",
+  muted: "text-white/70",
+  fade: "#1b1530",
+  primary: "bg-accent text-accent-foreground hover:bg-[#dcaa14]",
+  secondary: "border border-white/25 text-white hover:border-white/50 hover:bg-white/5",
 };
 
 // Landing-only button shape: 48px tall, 4px corners, 28px side padding.
 const buttonClass =
   "inline-flex h-12 items-center justify-center rounded-[4px] px-7 text-base font-medium transition-[background-color,border-color,scale] duration-150 ease-out outline-none focus-visible:ring-3 focus-visible:ring-ring active:scale-[0.97] motion-reduce:transition-none";
 
-type HeroProps = {
-  buildings: Building[];
-  events: CampusEvent[];
-  rescues: FoodRescue[];
-};
+type HeroProps = { events: CampusEvent[] };
 
-export function Hero({ buildings, events, rescues }: HeroProps) {
-  const theme = THEMES[HERO_THEME];
-  const eventBuildingIds = useMemo(
-    () => new Set(events.map((event) => event.buildingId)),
-    [events],
-  );
-  const foodBuildingIds = useMemo(
-    () => new Set(rescues.map((rescue) => rescue.buildingId)),
-    [rescues],
-  );
-
+export function Hero({ events }: HeroProps) {
   return (
     <section
       className={cn(
@@ -71,13 +74,10 @@ export function Hero({ buildings, events, rescues }: HeroProps) {
         theme.section,
       )}
     >
-      <RadarCanvas
-        buildings={buildings}
-        eventBuildingIds={eventBuildingIds}
-        foodBuildingIds={foodBuildingIds}
-        palette={theme.radar}
-      />
-      {/* A soft fade behind the text so it stays readable over the radar. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 opacity-80 motion-reduce:hidden">
+        <HeroBackground />
+      </div>
+      {/* A soft fade behind the text so it stays readable over the background. */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
