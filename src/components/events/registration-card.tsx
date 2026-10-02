@@ -1,5 +1,6 @@
 "use client";
 
+import { useRequireAccount } from "@/components/auth-provider";
 import { useId, useState } from "react";
 import Link from "next/link";
 import { CircleCheck, Loader2 } from "lucide-react";
@@ -52,7 +53,10 @@ export function RegistrationCard({
   const [name, setName] = useState("");
   const nameId = useId();
 
+  const requireAccount = useRequireAccount();
+
   async function register() {
+    if (!requireAccount()) return;
     setBusy(true);
     try {
       const profile = await getMyProfile();

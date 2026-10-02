@@ -3,6 +3,7 @@
 // Mobbin reference: Sweatpals "You're in!" ticket confirmation (web) for the
 // pickups, above a plain photo card grid.
 
+import { useRequireAccount } from "@/components/auth-provider";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Loader2, TriangleAlert, Utensils } from "lucide-react";
@@ -137,7 +138,11 @@ export function RescueGrid() {
     })
     .sort((a, b) => ORDER[pickupState(a.pickup, now)] - ORDER[pickupState(b.pickup, now)]);
 
+  const requireAccount = useRequireAccount();
+
   async function claim(rescue: FoodRescue): Promise<ClaimOutcome> {
+    // A guest is sent to sign in first, then comes back to this page.
+    if (!requireAccount()) return { ok: false, message: null, closed: false };
     try {
       const result = await claimPortion(rescue.id);
       if (result.ok && result.claimCode && result.expiresAt) {
