@@ -36,6 +36,7 @@ import {
 import type { HelpOfferStatus, HelpRequest, MyHelpOffer } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { OfferStatusBadge, RewardBadge, Spinner, helpDateFormat, spotsLabel } from "./help-shared";
+import { MessageOfferButton } from "./message-offer-button";
 
 type LoadState =
   | { status: "loading" }
@@ -235,6 +236,12 @@ function OfferPanel({ request, offer, ready, mine, onChange }: OfferPanelProps) 
           )}
           {closed && offer.status === "pending" && (
             <p className="text-sm text-muted-foreground">This request is closed</p>
+          )}
+          {(offer.status === "accepted" || offer.status === "done") && (
+            <MessageOfferButton
+              offerId={offer.id}
+              className="h-10 w-full bg-primary text-primary-foreground hover:bg-primary/85 hover:text-primary-foreground"
+            />
           )}
           {offer.status === "pending" && (
             <Button

@@ -15,6 +15,7 @@ import {
 } from "@/lib/db";
 import type { HelpOffer, HelpOfferStatus, HelpRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { MessageOfferButton } from "./message-offer-button";
 
 // Mobbin references: Workable's Jobs page (one card per posting with its status
 // control on the right) and Juicebox's candidate rows (name, a line of facts,
@@ -133,11 +134,16 @@ function OfferRow({
             </Button>
           </div>
         )}
-        {offer.status === "accepted" && !confirming && (
-          <Button variant="outline" className="h-9 px-3" onClick={() => setConfirming(true)}>
-            <Check aria-hidden />
-            Mark done
-          </Button>
+        {(offer.status === "accepted" || offer.status === "done") && !confirming && (
+          <div className="flex gap-2">
+            <MessageOfferButton offerId={offer.id} />
+            {offer.status === "accepted" && (
+              <Button variant="outline" className="h-9 px-3" onClick={() => setConfirming(true)}>
+                <Check aria-hidden />
+                Mark done
+              </Button>
+            )}
+          </div>
         )}
         {offer.status === "accepted" && confirming && (
           <div className="flex flex-col gap-2 sm:items-end">
