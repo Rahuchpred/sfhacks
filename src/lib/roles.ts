@@ -3,12 +3,13 @@
 // rules for the data itself.
 import type { Role } from "@/lib/types";
 
-export const ROLES: Role[] = ["student", "faculty", "recruiter"];
+export const ROLES: Role[] = ["student", "faculty", "recruiter", "safety"];
 
 export const ROLE_LABELS: Record<Role, string> = {
   student: "Student",
   faculty: "Faculty or staff",
   recruiter: "Recruiter",
+  safety: "Campus safety",
 };
 
 export function isRole(value: unknown): value is Role {
@@ -32,6 +33,7 @@ export function roleNeedsSfsuEmail(role: Role): boolean {
 export function roleHome(role: Role | null): string {
   if (role === "faculty") return "/help/mine";
   if (role === "recruiter") return "/recruiters";
+  if (role === "safety") return "/safety/alerts";
   return "/map";
 }
 
@@ -43,6 +45,7 @@ const CLUB_ROLES: Role[] = ["student", "faculty"];
 // First match wins, so the narrow paths come before their parents.
 const RULES: [RegExp, Access][] = [
   [/^\/(welcome)?$/, "open"],
+  [/^\/safety\/alerts(\/|$)/, ["safety"]],
   [/^\/(map|food|clubs|safety|events)(\/|$)/, "open"],
   [/^\/(profile|tickets)(\/|$)/, "account"],
   [/^\/help\/(new|mine)(\/|$)/, ["faculty"]],

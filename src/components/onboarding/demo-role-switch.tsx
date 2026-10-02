@@ -11,7 +11,12 @@ import { ROLES } from "@/lib/roles";
 import type { Role } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const SHORT: Record<Role, string> = { student: "Student", faculty: "Faculty", recruiter: "Recruiter" };
+const SHORT: Record<Role, string> = {
+  student: "Student",
+  faculty: "Faculty",
+  recruiter: "Recruiter",
+  safety: "Safety",
+};
 
 // Only a demo account sees this. The switch really changes the role in the
 // database, so every page and policy behaves as it would for that role.
@@ -41,7 +46,7 @@ export function DemoRoleSwitch() {
       <div
         role="group"
         aria-labelledby="demo-role-label"
-        className="grid grid-cols-3 gap-0.5 rounded-lg bg-sidebar-accent p-0.5"
+        className="grid grid-cols-2 gap-0.5 rounded-lg bg-sidebar-accent p-0.5"
       >
         {ROLES.map((option) => {
           const active = (pending ?? role) === option;

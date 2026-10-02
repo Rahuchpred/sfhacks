@@ -148,7 +148,8 @@ export type Guest = {
 // Profiles
 
 // A signed-in account picks one role, once. Guests have none.
-export type Role = "student" | "faculty" | "recruiter";
+// "safety" is campus safety staff. It is set by an admin or the demo switch, never in the onboarding.
+export type Role = "student" | "faculty" | "recruiter" | "safety";
 
 export type Profile = {
   id: string;
