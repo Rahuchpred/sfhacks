@@ -24,7 +24,10 @@ import type { Building, CampusEvent, FoodRescue, TicketWithEvent } from "@/lib/t
 
 const EmbeddedMap = dynamic(() => import("./embedded-map"), {
   ssr: false,
-  loading: () => <Skeleton className="size-full rounded-none" />,
+  // A dark pulse: the default light skeleton flashed white before the dark map.
+  loading: () => (
+    <Skeleton className="size-full rounded-none bg-white/[0.06] motion-reduce:animate-none" />
+  ),
 });
 
 type FeatureGridProps = {
@@ -249,7 +252,7 @@ function ProfilePanel({ events }: { events: CampusEvent[] }) {
   );
 
   return (
-    <div className="min-w-[21rem] space-y-3 px-5 pt-12">
+    <div className="space-y-3 px-3 pt-12 sm:px-5">
       <StatsRow stats={attendanceStats(sample)} />
       <AttendanceList attended={sample} />
     </div>

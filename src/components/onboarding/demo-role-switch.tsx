@@ -34,7 +34,7 @@ export function DemoRoleSwitch() {
   }
 
   return (
-    <div className="flex flex-col gap-1 px-1 pb-1 group-data-[collapsible=icon]:hidden">
+    <div className="flex animate-in flex-col gap-1 px-1 pb-1 duration-200 ease-out fade-in-0 group-data-[collapsible=icon]:hidden motion-reduce:animate-none">
       <span id="demo-role-label" className="px-1 text-xs font-medium text-sidebar-foreground/70">
         Demo role
       </span>

@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import { GrainGradient } from "@paper-design/shaders-react";
+import { useAuth } from "@/components/auth-provider";
 import { cn } from "@/lib/utils";
 import type { CampusEvent } from "@/lib/types";
 import { LiveCount } from "./live-count";
@@ -37,6 +38,10 @@ export function Hero({ events }: HeroProps) {
     () => window.matchMedia(REDUCED_MOTION).matches,
     () => false,
   );
+  // Only a guest needs the way in. It waits for the session, so it never
+  // shows for a moment to someone who is already signed in.
+  const { role, ready } = useAuth();
+  const guest = ready && !role;
 
   return (
     <section className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-[#1b1530] px-5 py-24 text-center text-white">
@@ -59,6 +64,18 @@ export function Hero({ events }: HeroProps) {
         </span>
         Gator Radar
       </p>
+      <Link
+        href="/welcome"
+        aria-hidden={!guest}
+        tabIndex={guest ? undefined : -1}
+        className={cn(
+          "absolute top-[1.125rem] right-5 inline-flex h-9 items-center justify-center rounded-[4px] border border-white/25 bg-[#1b1530]/40 px-4 text-sm font-medium text-white outline-none sm:right-8",
+          "transition-[background-color,border-color,opacity,scale] duration-150 ease-out hover:border-white/50 hover:bg-white/5 focus-visible:ring-3 focus-visible:ring-ring active:scale-[0.97] motion-reduce:transition-none",
+          guest ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
+      >
+        Sign in
+      </Link>
 
       <div className="relative flex flex-col items-center">
         <LiveCount count={events.length} className="text-white/70" />

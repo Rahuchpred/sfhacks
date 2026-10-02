@@ -200,7 +200,7 @@ function OfferPanel({ request, offer, ready, mine, onChange }: OfferPanelProps) 
   return (
     <Card className="gap-0 overflow-hidden py-0">
       <p className="border-b bg-muted px-4 py-2 text-xs font-medium text-muted-foreground">
-        {mine ? "Your request" : offer ? "Your offer" : "Offer to help"}
+        {mine ? "Your request" : offer ? "Your offer" : ready ? "Offer to help" : " "}
       </p>
 
       {mine ? (
@@ -247,6 +247,13 @@ function OfferPanel({ request, offer, ready, mine, onChange }: OfferPanelProps) 
               {busy ? "Withdrawing…" : "Withdraw offer"}
             </Button>
           )}
+        </CardContent>
+      ) : !ready ? (
+        // Until the lookup is back, so the form never flashes before an offer.
+        <CardContent className="space-y-3 p-4" aria-busy="true">
+          <Skeleton className="h-5 w-32 motion-reduce:animate-none" />
+          <Skeleton className="h-16 w-full motion-reduce:animate-none" />
+          <Skeleton className="h-10 w-full motion-reduce:animate-none" />
         </CardContent>
       ) : closed ? (
         <CardContent className="p-4">
