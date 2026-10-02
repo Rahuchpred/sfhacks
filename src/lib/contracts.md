@@ -19,6 +19,7 @@ The single source of truth for data shapes. Frozen: change these only in the mai
 - `listBuildings()`, `listUpcomingEvents()`, `listOpenRescues()`
 - `createEvent(event)`, `createRescue(rescue)`
 - `claimPortion(rescueId)`: atomic, one per user, returns `{ ok, portionsLeft, reason }`
+- `listMyClaims()`: rescue ids the signed-in user has claimed
 - `uploadImage(file)`: returns a public URL
 - `useCampus()` in `src/lib/use-campus.ts`: live buildings, events and rescues for any client component
 

@@ -129,6 +129,13 @@ export async function claimPortion(rescueId: string): Promise<ClaimResult> {
   };
 }
 
+// Rescue ids the signed-in user has claimed.
+export async function listMyClaims(): Promise<string[]> {
+  const { data, error } = await supabase.from("claims").select("rescue_id");
+  if (error) throw error;
+  return data.map((row) => row.rescue_id);
+}
+
 export async function uploadImage(file: File): Promise<string> {
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
   const path = `${crypto.randomUUID()}.${ext}`;
