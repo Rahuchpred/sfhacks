@@ -210,6 +210,14 @@ export async function listRescueClaims(rescueId: string): Promise<RescueClaim[]>
   }));
 }
 
+// Food posts by id, any status. Used to show a held portion after its post leaves the open list.
+export async function listRescuesByIds(ids: string[]): Promise<FoodRescue[]> {
+  if (ids.length === 0) return [];
+  const { data, error } = await supabase.from("food_rescues").select("*").in("id", ids);
+  if (error) throw error;
+  return data.map(toRescue);
+}
+
 // Food posts across several events, any status. Used by organizer analytics.
 export async function listRescuesForEvents(eventIds: string[]): Promise<FoodRescue[]> {
   if (eventIds.length === 0) return [];

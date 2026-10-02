@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useUser } from "@/components/auth-provider";
-import { getEvent, listMyClaims, releaseExpiredClaims, toRescue } from "@/lib/db";
-import { supabase } from "@/lib/supabase/client";
+import { getEvent, listMyClaims, listRescuesByIds, releaseExpiredClaims } from "@/lib/db";
 import type { CampusEvent, FoodRescue, MyClaim } from "@/lib/types";
 
 // The student's pickups come from the database (listMyClaims), never from
@@ -173,18 +172,16 @@ export function useRescueLookup(live: FoodRescue[], ids: string[]): Map<string, 
     if (missing.length === 0) return;
     missing.forEach((id) => asked.current.add(id));
 
-    supabase
-      .from("food_rescues")
-      .select("*")
-      .in("id", missing)
-      .then(({ data }) => {
-        if (!data) {
+    listRescuesByIds(missing)
+      .catch(() => null)
+      .then((rescues) => {
+        if (!rescues) {
           missing.forEach((id) => asked.current.delete(id));
           return;
         }
         setFetched((current) => {
           const next = new Map(current);
-          for (const row of data) next.set(row.id, toRescue(row));
+          for (const rescue of rescues) next.set(rescue.id, rescue);
           // Deleted posts fall back to what the live list last showed.
           for (const id of missing) {
             const last = seen.current.get(id);
