@@ -1,5 +1,6 @@
 import { aiErrorResponse, generateJson } from "@/lib/ai";
 import { extractEventSchema } from "@/lib/ai-schemas";
+import { EVENT_TAGS, missingFields } from "@/lib/checks";
 import { listBuildings } from "@/lib/db";
 import { extractEventFixture } from "@/lib/fixtures";
 import { extractEventPrompt } from "@/lib/prompts";
@@ -12,13 +13,26 @@ export async function POST(request: Request) {
   }
   try {
     const buildings = await listBuildings();
-    const result: ExtractEventResponse = await generateJson({
+    const result = await generateJson({
       prompt: extractEventPrompt(buildings, text),
       imageUrl,
       schema: extractEventSchema,
       fixture: extractEventFixture,
     });
-    return Response.json(result);
+
+    // Never trust the model for ids or tags: keep only values that really exist.
+    const event = result.event;
+    if (!buildings.some((building) => building.id === event.buildingId)) {
+      event.buildingId = null;
+    }
+    event.tags = event.tags.filter((tag) => (EVENT_TAGS as readonly string[]).includes(tag));
+
+    const response: ExtractEventResponse = {
+      event,
+      missing: missingFields(event),
+      confidence: result.confidence,
+    };
+    return Response.json(response);
   } catch (error) {
     return aiErrorResponse(error);
   }

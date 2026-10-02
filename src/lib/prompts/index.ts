@@ -1,7 +1,6 @@
 // Prompt builders. Starter versions: Thread B owns and improves these.
-import type { Building, EventDraft } from "@/lib/types";
-
-const TIMEZONE = "America/Los_Angeles";
+import { EVENT_TAGS, TIMEZONE } from "@/lib/checks";
+import type { Building, EventDraft, EventIssue } from "@/lib/types";
 
 function nowLine(): string {
   const now = new Date();
@@ -31,7 +30,7 @@ const EVENT_SHAPE = `{
   "room": string | null,
   "startsAt": string | null,      // ISO 8601 with Pacific offset, e.g. 2026-10-08T17:00:00-07:00
   "endsAt": string | null,
-  "tags": string[],               // 1-4 of: social, cultural, academic, career, sports, arts, wellness, volunteer, free food
+  "tags": string[],               // 1-4 of: ${EVENT_TAGS.join(", ")}
   "hasFood": boolean | null
 }`;
 
@@ -60,8 +59,12 @@ Reply with only this JSON object, no other text:
 }`;
 }
 
-export function checkEventPrompt(buildings: Building[], event: EventDraft): string {
-  return `You check a campus event before it is published on a shared map at San Francisco State University. Find real problems only.
+export function checkEventPrompt(
+  buildings: Building[],
+  event: EventDraft,
+  alreadyFound: EventIssue[],
+): string {
+  return `You review a campus event before it is published on a shared map at San Francisco State University.
 
 ${nowLine()}
 
@@ -71,42 +74,34 @@ ${buildingList(buildings)}
 Event:
 ${JSON.stringify(event, null, 2)}
 
-Check for:
-- A weekday named in the title or description that does not match the date
-- A start time in the past, or an end time before the start time
-- A missing building, room, start or end time
-- A buildingId that is not in the list
-- An event with food but no mention of allergens
+Dates, times, weekdays and missing fields were already checked by code. These problems were found, do not repeat them:
+${alreadyFound.length ? alreadyFound.map((issue) => `- ${issue.field}: ${issue.message}`).join("\n") : "- none"}
 
-"issues" use severity "error" for things that block publishing and "warn" for things worth a second look. "questions" are short questions to ask the organizer for missing info. "ok" is true only when there are no errors.
+Your job:
+- "issues": other things a student would find confusing or wrong, such as a title that does not match the description, a description that contradicts the time or place, or an unclear location. Use the event field name. Leave empty if the event looks fine. Never invent a problem.
+- "questions": up to 3 short questions to ask the organizer for useful missing info (for example allergens if there is food, whether it is open to all students, or what to bring). Skip anything already answered.
 
 Reply with only this JSON object, no other text:
 {
-  "ok": boolean,
-  "issues": [{ "field": string, "message": string, "severity": "error" | "warn" }],
+  "issues": [{ "field": string, "message": string }],
   "questions": string[]
 }`;
 }
 
-export function estimateFoodPrompt(postedAt: string): string {
+export function estimateFoodPrompt(): string {
   return `You look at a photo of leftover food from a campus event so students can claim it before it is thrown away.
-
-The photo was posted at ${postedAt}.
 
 Rules:
 - "items": a short plain list of what you see, e.g. "Cheese pizza, veggie wraps".
 - "portions": a careful estimate of single servings left. When unsure, estimate low.
-- "dietary": tags you can actually see evidence for, from: vegetarian, vegan, contains meat, contains dairy, contains gluten, contains nuts, halal, unknown. Use "unknown" when you cannot tell.
-- "safeUntil": ISO 8601 time. Hot or perishable food left out is safe for 2 hours after posting. Packaged shelf-stable food is safe for 8 hours.
-- "note": one short sentence explaining the safe-until time.
-- Never guess that food is free of an allergen.
+- "dietary": tags you can actually see evidence for, from: vegetarian, vegan, contains meat, contains dairy, contains gluten, contains nuts, unknown. Use "unknown" when you cannot tell. Never guess that food is free of an allergen.
+- "category": "perishable" for anything cooked, hot, cut, dairy, meat or opened. "shelf_stable" only for sealed packaged items like chips, granola bars or canned drinks. When unsure, use "perishable".
 
 Reply with only this JSON object, no other text:
 {
   "items": string,
   "portions": number,
   "dietary": string[],
-  "safeUntil": string,
-  "note": string
+  "category": "perishable" | "shelf_stable"
 }`;
 }

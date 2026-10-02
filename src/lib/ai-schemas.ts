@@ -21,24 +21,18 @@ export const extractEventSchema = z.object({
   confidence: z.number().min(0).max(1).catch(0.5),
 });
 
+// Model output only. The route merges this with the code checks in src/lib/checks.ts.
 export const checkEventSchema = z.object({
-  ok: z.boolean(),
   issues: z
-    .array(
-      z.object({
-        field: z.string(),
-        message: z.string(),
-        severity: z.enum(["error", "warn"]).catch("warn"),
-      }),
-    )
+    .array(z.object({ field: z.string(), message: z.string() }))
     .catch([]),
   questions: z.array(z.string()).catch([]),
 });
 
+// Model output only. The route computes safeUntil from the category.
 export const estimateFoodSchema = z.object({
   items: z.string(),
   portions: z.number().int().positive(),
   dietary: z.array(z.string()).catch([]),
-  safeUntil: z.string(),
-  note: z.string().catch(""),
+  category: z.enum(["perishable", "shelf_stable"]).catch("perishable"),
 });

@@ -11,6 +11,7 @@ The single source of truth for data shapes. Frozen: change these only in the mai
 | `src/lib/database.types.ts` | Generated from the database. Regenerate with `supabase gen types typescript --linked` |
 | `src/lib/ai.ts` | `generateJson()`, the only way to call the model |
 | `src/lib/ai-schemas.ts` | zod schemas that validate model output |
+| `src/lib/checks.ts` | Exact event checks in code, plus `EVENT_TAGS` (the fixed tag list) |
 | `supabase/migrations` | Database schema. New changes go in a new migration file |
 
 ## Data access (`src/lib/db.ts`)
@@ -31,6 +32,12 @@ All routes are `POST`, take JSON and return JSON. On failure they return `{ erro
 | `/api/ai/check-event` | `CheckEventRequest` `{ event }` | `CheckEventResponse` `{ ok, issues, questions }` |
 | `/api/ai/estimate-food` | `EstimateFoodRequest` `{ imageUrl, postedAt }` | `EstimateFoodResponse` `{ items, portions, dietary, safeUntil, note }` |
 | `GET /api/ai/ping` | none | `{ mock, model, reply, gemmaModels }` |
+
+How the AI and code split the work:
+
+- **Check event:** dates, weekday, past events, end before start and missing fields are checked in code (`src/lib/checks.ts`). Only those can be `severity: "error"` and block publishing. Model findings are always `"warn"`. A missing room is a warning, not an error.
+- **Extract event:** building ids and tags from the model are dropped unless they exist in the building list and in `EVENT_TAGS`. `missing` is computed in code.
+- **Estimate food:** `safeUntil` is computed in code: 2 hours after posting for perishable food, 8 hours for sealed packaged food.
 
 `imageUrl` must be a URL returned by `uploadImage()`. With `AI_MOCK=1` or no `GEMINI_API_KEY`, routes return the fixtures in `src/lib/fixtures`.
 

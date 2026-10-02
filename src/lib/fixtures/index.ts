@@ -1,9 +1,5 @@
 // Mock AI replies used when AI_MOCK=1 or no API key is set.
-import type {
-  CheckEventResponse,
-  EstimateFoodResponse,
-  ExtractEventResponse,
-} from "@/lib/types";
+import type { ExtractEventResponse } from "@/lib/types";
 
 export const extractEventFixture: ExtractEventResponse = {
   event: {
@@ -21,22 +17,14 @@ export const extractEventFixture: ExtractEventResponse = {
   confidence: 0.86,
 };
 
-export const checkEventFixture: CheckEventResponse = {
-  ok: false,
-  issues: [
-    {
-      field: "startsAt",
-      message: "The flyer says Thursday, Oct 9, but Oct 9, 2026 is a Friday.",
-      severity: "error",
-    },
-  ],
+export const checkEventFixture = {
+  issues: [],
   questions: ["Is there any food with common allergens?"],
 };
 
-export const estimateFoodFixture: EstimateFoodResponse = {
+export const estimateFoodFixture = {
   items: "Cheese pizza, veggie pizza",
   portions: 14,
   dietary: ["vegetarian", "contains dairy", "contains gluten"],
-  safeUntil: "2026-10-02T15:30:00-07:00",
-  note: "Hot food is safe for about 2 hours at room temperature.",
+  category: "perishable" as const,
 };
