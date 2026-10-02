@@ -2,6 +2,7 @@
 
 import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Toggle } from "@/components/ui/toggle";
 import { cn } from "@/lib/utils";
 import type { EventFilters, TimeFilter } from "./use-event-filters";
 
@@ -13,29 +14,27 @@ const TIMES: { value: TimeFilter; label: string }[] = [
 
 type ChipProps = {
   pressed: boolean;
-  onClick: () => void;
+  onPressedChange: (pressed: boolean) => void;
   tone?: "event" | "food";
   children: React.ReactNode;
 };
 
-function Chip({ pressed, onClick, tone = "event", children }: ChipProps) {
+// Purple when pressed for event filters, gold for food.
+function Chip({ pressed, onPressedChange, tone = "event", children }: ChipProps) {
   return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={onClick}
+    <Toggle
+      variant="outline"
+      pressed={pressed}
+      onPressedChange={onPressedChange}
       className={cn(
-        "h-8 shrink-0 rounded-full border px-3 text-sm font-medium transition-colors",
-        "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
-        pressed
-          ? tone === "food"
-            ? "border-accent bg-accent text-accent-foreground"
-            : "border-primary bg-primary text-primary-foreground"
-          : "border-border bg-background text-foreground hover:bg-muted",
+        "shrink-0 rounded-full border-border bg-background px-3",
+        tone === "food"
+          ? "aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-accent-foreground aria-pressed:hover:bg-accent/85 aria-pressed:hover:text-accent-foreground"
+          : "aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/85 aria-pressed:hover:text-primary-foreground",
       )}
     >
       {children}
-    </button>
+    </Toggle>
   );
 }
 
@@ -76,7 +75,7 @@ export function Filters({ filters }: { filters: EventFilters }) {
           <Chip
             key={value}
             pressed={filters.time === value}
-            onClick={() => filters.setTime(filters.time === value ? "all" : value)}
+            onPressedChange={(pressed) => filters.setTime(pressed ? value : "all")}
           >
             {label}
           </Chip>
@@ -84,7 +83,7 @@ export function Filters({ filters }: { filters: EventFilters }) {
         <Chip
           tone="food"
           pressed={filters.foodOnly}
-          onClick={() => filters.setFoodOnly(!filters.foodOnly)}
+          onPressedChange={filters.setFoodOnly}
         >
           Free food
         </Chip>
@@ -92,7 +91,7 @@ export function Filters({ filters }: { filters: EventFilters }) {
           <Chip
             key={tag}
             pressed={filters.tags.includes(tag)}
-            onClick={() => filters.toggleTag(tag)}
+            onPressedChange={() => filters.toggleTag(tag)}
           >
             <span className="capitalize">{tag}</span>
           </Chip>
