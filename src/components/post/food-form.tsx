@@ -70,8 +70,22 @@ function validate(values: Values): Errors {
   return errors;
 }
 
-export function FoodForm({ buildings }: { buildings: Building[] }) {
+// Set when the host comes from a finished event: the place is already known.
+export type FoodPrefill = { eventId: string | null; buildingId: string; room: string };
+
+export function FoodForm({
+  buildings,
+  prefill,
+}: {
+  buildings: Building[];
+  prefill?: FoodPrefill;
+}) {
   const router = useRouter();
+  const [startValues] = useState<Values>(() => ({
+    ...EMPTY,
+    buildingId: prefill?.buildingId ?? "",
+    room: prefill?.room ?? "",
+  }));
 
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -80,7 +94,7 @@ export function FoodForm({ buildings }: { buildings: Building[] }) {
   const [estimate, setEstimate] = useState<EstimateFoodResponse | null>(null);
   const estimateId = useRef(0);
 
-  const [values, setValues] = useState<Values>(EMPTY);
+  const [values, setValues] = useState<Values>(startValues);
   const [errors, setErrors] = useState<Errors>({});
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
@@ -151,7 +165,7 @@ export function FoodForm({ buildings }: { buildings: Building[] }) {
     setPublishError(null);
     try {
       const created = await createRescue({
-        eventId: null,
+        eventId: prefill?.eventId ?? null,
         buildingId: values.buildingId,
         room: values.room.trim() || null,
         photoUrl,
@@ -179,7 +193,7 @@ export function FoodForm({ buildings }: { buildings: Building[] }) {
     setEstimating(false);
     setEstimate(null);
     setEstimateError(null);
-    setValues(EMPTY);
+    setValues(startValues);
     setErrors({});
     setPublishError(null);
     setPublished(null);
@@ -233,6 +247,12 @@ export function FoodForm({ buildings }: { buildings: Building[] }) {
           tone="food"
           disabled={publishing}
         />
+
+        {prefill?.buildingId && (
+          <p className="text-sm text-pretty text-muted-foreground">
+            The place is filled in from your event. You can change it before posting.
+          </p>
+        )}
 
         <p aria-live="polite" className="flex items-center gap-2 text-sm text-muted-foreground">
           {estimating && (
