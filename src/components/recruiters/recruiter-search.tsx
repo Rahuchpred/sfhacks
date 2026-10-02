@@ -386,7 +386,8 @@ export function RecruiterSearch() {
 
       <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <section aria-labelledby="results-heading" className="min-w-0">
-          <div className="flex items-baseline justify-between gap-4 border-b pb-3">
+          {/* As tall as the Clear button, so the list does not move when it appears. */}
+          <div className="flex min-h-[2.5625rem] items-center justify-between gap-4 border-b pb-3">
             <h2 id="results-heading" className="text-sm text-muted-foreground">
               {loading ? (
                 "Loading students…"
