@@ -53,6 +53,8 @@ export function Planner({ onUse }: { onUse: (prefill: EventPrefill) => void }) {
   useEffect(() => {
     let cancelled = false;
     listMyClubs()
+      // A plain member cannot post for the club, so it is not offered.
+      .then((all) => all.filter((club) => club.role !== "member"))
       .then((list) => {
         if (cancelled) return;
         setClubs(list);
