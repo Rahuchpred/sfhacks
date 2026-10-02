@@ -5,6 +5,7 @@ import Link from "next/link";
 import { BadgeCheck, Check, Copy, Download, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { useUser } from "@/components/auth-provider";
+import { OrganizersOnly } from "@/components/clubs/club-level";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Select,
@@ -33,6 +34,7 @@ import {
   type ReportTotals,
 } from "@/lib/reports";
 import type { AttendanceRow, Building, CampusEvent, FoodRescue, MyClub } from "@/lib/types";
+import { canOrganize } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
 // Mobbin reference: Square "Timecards" report
@@ -49,6 +51,8 @@ const TD = "px-3 py-2.5";
 const NUM = "text-right tabular-nums";
 // Club and building fold under the event title on a phone, so the counts stay in view.
 const WIDE = "hidden md:table-cell";
+// The check-in table opens with its first rows. Copy and download always take every row.
+const CHECKINS_PREVIEW = 8;
 
 function percent(value: number | null): string {
   return value === null ? "n/a" : `${value}%`;
@@ -89,6 +93,9 @@ export function ReportView() {
   const [rescues, setRescues] = useState<FoodRescue[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [clubs, setClubs] = useState<MyClub[]>([]);
+  // True for someone who is only a member of their clubs: nothing here is theirs to export.
+  const [memberOnly, setMemberOnly] = useState(false);
+  const [showAllCheckIns, setShowAllCheckIns] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -103,8 +110,9 @@ export function ReportView() {
     let cancelled = false;
     (async () => {
       try {
+        // Only the events this account may read data for: a club member gets none.
         const [hosted, attendance, myClubs, allBuildings] = await Promise.all([
-          listMyHostedEvents(),
+          listMyHostedEvents("manage"),
           listHostAttendance(),
           listMyClubs(),
           listBuildings(),
@@ -113,7 +121,8 @@ export function ReportView() {
         if (cancelled) return;
         setEvents(hosted);
         setRows(attendance);
-        setClubs(myClubs);
+        setClubs(myClubs.filter((club) => canOrganize(club.role)));
+        setMemberOnly(hosted.length === 0 && myClubs.some((club) => club.role === "member"));
         setBuildings(allBuildings);
         setRescues(food);
       } catch (loadError) {
@@ -227,6 +236,8 @@ export function ReportView() {
       </p>
     );
   }
+
+  if (memberOnly) return <OrganizersOnly title="Reports" />;
 
   if (events.length === 0) {
     return (
@@ -398,47 +409,62 @@ export function ReportView() {
               No check-ins yet.
             </p>
           ) : (
-            <div className="overflow-x-auto rounded-xl border">
-              <table className="w-full min-w-[52rem] text-sm">
-                <thead>
-                  <tr className="border-b text-left text-xs text-muted-foreground">
-                    <th scope="col" className={TH}>Student</th>
-                    <th scope="col" className={TH}>Event</th>
-                    <th scope="col" className={TH}>Date</th>
-                    <th scope="col" className={TH}>Major</th>
-                    <th scope="col" className={TH}>Class</th>
-                    <th scope="col" className={TH}>Registered at</th>
-                    <th scope="col" className={TH}>Checked in at</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.checkIns.map((row) => (
-                    <tr key={row.rsvpId} className="border-b last:border-b-0">
-                      <td className={TD}>
-                        <span className="flex items-center gap-1.5 font-medium">
-                          {row.student}
-                          {row.verified && (
-                            <BadgeCheck
-                              className="size-4 shrink-0 text-primary"
-                              aria-label="Verified SFSU student"
-                            />
-                          )}
-                        </span>
-                      </td>
-                      <td className={cn(TD, "max-w-64 truncate")}>{row.event}</td>
-                      <td className={cn(TD, "whitespace-nowrap tabular-nums")}>{row.date}</td>
-                      <td className={cn(TD, "text-muted-foreground")}>{row.major}</td>
-                      <td className={cn(TD, "text-muted-foreground tabular-nums")}>
-                        {row.gradYear ?? ""}
-                      </td>
-                      <td className={cn(TD, "whitespace-nowrap text-muted-foreground tabular-nums")}>
-                        {row.registeredAt}
-                      </td>
-                      <td className={cn(TD, "whitespace-nowrap tabular-nums")}>{row.checkedInAt}</td>
+            <div className="space-y-3">
+              <div className="overflow-x-auto rounded-xl border">
+                <table className="w-full min-w-[52rem] text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-xs text-muted-foreground">
+                      <th scope="col" className={TH}>Student</th>
+                      <th scope="col" className={TH}>Event</th>
+                      <th scope="col" className={TH}>Date</th>
+                      <th scope="col" className={TH}>Major</th>
+                      <th scope="col" className={TH}>Class</th>
+                      <th scope="col" className={TH}>Registered at</th>
+                      <th scope="col" className={TH}>Checked in at</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {(showAllCheckIns
+                      ? report.checkIns
+                      : report.checkIns.slice(0, CHECKINS_PREVIEW)
+                    ).map((row) => (
+                      <tr key={row.rsvpId} className="border-b last:border-b-0">
+                        <td className={TD}>
+                          <span className="flex items-center gap-1.5 font-medium">
+                            {row.student}
+                            {row.verified && (
+                              <BadgeCheck
+                                className="size-4 shrink-0 text-primary"
+                                aria-label="Verified SFSU student"
+                              />
+                            )}
+                          </span>
+                        </td>
+                        <td className={cn(TD, "max-w-64 truncate")}>{row.event}</td>
+                        <td className={cn(TD, "whitespace-nowrap tabular-nums")}>{row.date}</td>
+                        <td className={cn(TD, "text-muted-foreground")}>{row.major}</td>
+                        <td className={cn(TD, "text-muted-foreground tabular-nums")}>
+                          {row.gradYear ?? ""}
+                        </td>
+                        <td className={cn(TD, "whitespace-nowrap text-muted-foreground tabular-nums")}>
+                          {row.registeredAt}
+                        </td>
+                        <td className={cn(TD, "whitespace-nowrap tabular-nums")}>{row.checkedInAt}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {report.checkIns.length > CHECKINS_PREVIEW && (
+                <Button
+                  variant="outline"
+                  className="h-9 w-full tabular-nums"
+                  aria-expanded={showAllCheckIns}
+                  onClick={() => setShowAllCheckIns((current) => !current)}
+                >
+                  {showAllCheckIns ? "Show fewer" : `Show all ${report.checkIns.length}`}
+                </Button>
+              )}
             </div>
           )}
         </TabsContent>

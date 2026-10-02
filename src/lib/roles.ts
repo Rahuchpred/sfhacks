@@ -1,7 +1,7 @@
 // Roles and who may open which page. Pure code, shared by the sidebar, the page
 // guard in the app shell and the onboarding. The database enforces the same
 // rules for the data itself.
-import type { Role } from "@/lib/types";
+import type { ClubLevel, Role } from "@/lib/types";
 
 export const ROLES: Role[] = ["student", "faculty", "recruiter", "safety"];
 
@@ -11,6 +11,28 @@ export const ROLE_LABELS: Record<Role, string> = {
   recruiter: "Recruiter",
   safety: "Campus safety",
 };
+
+// Levels inside a club. The database enforces what each one may do.
+export const CLUB_LEVEL_LABELS: Record<ClubLevel, string> = {
+  owner: "Owner",
+  organizer: "Organizer",
+  member: "Member",
+};
+
+// Owners and organizers post and edit events and read the data. Members help at
+// the door and with leftover food.
+export function canOrganize(level: ClubLevel | null | undefined): boolean {
+  return level === "owner" || level === "organizer";
+}
+
+// The level over an event: the level in its club, or owner of an event with no club.
+export function eventLevel(
+  event: { clubId: string | null },
+  clubs: { id: string; role: ClubLevel }[],
+): ClubLevel | null {
+  if (!event.clubId) return "owner";
+  return clubs.find((club) => club.id === event.clubId)?.role ?? null;
+}
 
 export function isRole(value: unknown): value is Role {
   return typeof value === "string" && (ROLES as string[]).includes(value);

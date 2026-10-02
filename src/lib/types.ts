@@ -95,11 +95,15 @@ export type RescueClaim = {
 // Clubs
 
 export type Club = { id: string; name: string; createdBy: string };
-export type MyClub = Club & { role: "owner" | "organizer"; joinCode: string };
+// Owner: everything. Organizer: posts events and reads the data. Member: helps at
+// events (door check-in and leftover food), with no data and no editing.
+export type ClubLevel = "owner" | "organizer" | "member";
+// joinCode is empty for a member: only the owner and organizers invite people.
+export type MyClub = Club & { role: ClubLevel; joinCode: string };
 export type ClubMember = {
   uid: string;
   name: string;
-  role: "owner" | "organizer";
+  role: ClubLevel;
   joinedAt: string;
 };
 

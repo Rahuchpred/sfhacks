@@ -14,12 +14,15 @@ import {
   ScanLine,
   Utensils,
 } from "lucide-react";
+import { useUser } from "@/components/auth-provider";
+import { LevelBadge } from "@/components/clubs/club-level";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { useNow } from "@/components/food/countdown";
 import { EventForm } from "@/components/post/event-form";
-import { listBuildings } from "@/lib/db";
-import type { Building, CampusEvent } from "@/lib/types";
+import { listBuildings, listMyClubs } from "@/lib/db";
+import { canOrganize, eventLevel } from "@/lib/roles";
+import type { Building, CampusEvent, ClubLevel } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { CancelEvent } from "./cancel-event";
 import { GuestList } from "./guest-list";
@@ -74,6 +77,29 @@ function ManageEvent({
   const [placeReady, setPlaceReady] = useState(false);
   const [editing, setEditing] = useState(false);
   const topRef = useRef<HTMLDivElement>(null);
+  const userId = useUser()?.id ?? null;
+  // The level over this event. Null until known: the organizer tools wait for it.
+  const [level, setLevel] = useState<ClubLevel | null>(event.clubId ? null : "owner");
+
+  useEffect(() => {
+    if (!event.clubId || !userId) return;
+    let cancelled = false;
+    listMyClubs()
+      .then((clubs) => {
+        if (!cancelled) setLevel(eventLevel(event, clubs) ?? "member");
+      })
+      // Without an answer, show the member view. The database decides either way.
+      .catch(() => {
+        if (!cancelled) setLevel("member");
+      });
+    return () => {
+      cancelled = true;
+    };
+    // The club of an event does not change while this page is open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [event.clubId, userId]);
+
+  const canManage = canOrganize(level);
 
   // The form and the page it replaces have different heights, so each switch starts at the top.
   function showEditor(next: boolean) {
@@ -150,10 +176,16 @@ function ManageEvent({
             )}
           </p>
           <Badge variant={PHASE[phase].variant}>{PHASE[phase].label}</Badge>
+          {event.clubId && level && (
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span className="min-w-0 truncate">{event.clubName}</span>
+              <LevelBadge level={level} />
+            </span>
+          )}
         </div>
       </header>
 
-      {editing ? (
+      {editing && canManage ? (
         <EventForm
           buildings={buildings}
           initial={event}
@@ -207,30 +239,34 @@ function ManageEvent({
             </div>
           </section>
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className={cn("grid gap-3", canManage && "sm:grid-cols-3")}>
             <Link href={`/host/${event.id}/check-in`} className={TILE}>
               <span className={cn(TILE_ICON, "bg-primary/10 text-primary")}>
                 <ScanLine aria-hidden="true" />
               </span>
               Check in guests
             </Link>
-            <button
-              type="button"
-              className={TILE}
-              disabled={buildings.length === 0}
-              onClick={() => showEditor(true)}
-            >
-              <span className={cn(TILE_ICON, "bg-primary/10 text-primary")}>
-                <Pencil aria-hidden="true" />
-              </span>
-              Edit event
-            </button>
-            <Link href="/host/analytics" className={TILE}>
-              <span className={cn(TILE_ICON, "bg-primary/10 text-primary")}>
-                <ChartColumn aria-hidden="true" />
-              </span>
-              Analytics
-            </Link>
+            {canManage && (
+              <button
+                type="button"
+                className={TILE}
+                disabled={buildings.length === 0}
+                onClick={() => showEditor(true)}
+              >
+                <span className={cn(TILE_ICON, "bg-primary/10 text-primary")}>
+                  <Pencil aria-hidden="true" />
+                </span>
+                Edit event
+              </button>
+            )}
+            {canManage && (
+              <Link href="/host/analytics" className={TILE}>
+                <span className={cn(TILE_ICON, "bg-primary/10 text-primary")}>
+                  <ChartColumn aria-hidden="true" />
+                </span>
+                Analytics
+              </Link>
+            )}
           </div>
 
           {showLeftover && (
@@ -290,14 +326,18 @@ function ManageEvent({
 
           <GuestList eventId={event.id} version={version} now={now} onCheckedIn={refresh} />
 
-          <hr className="border-border" />
+          {canManage && (
+            <>
+              <hr className="border-border" />
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-            <p className="text-sm text-pretty text-muted-foreground">
-              Canceling removes the event from the map and all tickets.
-            </p>
-            <CancelEvent event={event} />
-          </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <p className="text-sm text-pretty text-muted-foreground">
+                  Canceling removes the event from the map and all tickets.
+                </p>
+                <CancelEvent event={event} />
+              </div>
+            </>
+          )}
         </>
       )}
     </div>

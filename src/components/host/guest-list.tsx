@@ -28,6 +28,8 @@ const countFormat = new Intl.NumberFormat();
 const relativeFormat = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
 
 const CONTROL = "h-10 w-auto max-w-full";
+// A long guest list opens short. Searching looks through everyone.
+const PREVIEW = 8;
 const LIST = "divide-y overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10";
 
 // "11 hours ago", "2 days ago". Anything under a minute reads "just now".
@@ -123,6 +125,7 @@ export function GuestList({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("newest");
+  const [showAll, setShowAll] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
   // Check-ins made here, shown at once without waiting for the refetch.
   const [done, setDone] = useState<Record<string, string>>({});
@@ -161,7 +164,7 @@ export function GuestList({
       } else {
         toast.error(
           result.reason === "not_host"
-            ? "Only this event's organizers can check guests in."
+            ? "Only people in this event's club can check guests in."
             : "That registration no longer exists.",
         );
       }
@@ -259,12 +262,14 @@ export function GuestList({
         : Date.parse(b.createdAt) - Date.parse(a.createdAt),
     );
 
+  const shown = showAll ? visible : visible.slice(0, PREVIEW);
+
   return (
     <section aria-labelledby="guests-heading" className="space-y-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         {heading}
         <p aria-live="polite" className="text-sm text-muted-foreground tabular-nums">
-          Showing {countFormat.format(visible.length)} of {countFormat.format(guests.length)}{" "}
+          Showing {countFormat.format(shown.length)} of {countFormat.format(guests.length)}{" "}
           {guests.length === 1 ? "guest" : "guests"}
         </p>
       </div>
@@ -331,7 +336,7 @@ export function GuestList({
 
       {visible.length > 0 ? (
         <ul className={LIST}>
-          {visible.map((guest) => (
+          {shown.map((guest) => (
             <GuestRow
               key={guest.rsvpId}
               guest={guest}
@@ -346,6 +351,17 @@ export function GuestList({
         <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm font-medium">
           No guests match
         </p>
+      )}
+
+      {visible.length > PREVIEW && (
+        <Button
+          variant="outline"
+          className="h-10 w-full tabular-nums"
+          aria-expanded={showAll}
+          onClick={() => setShowAll((current) => !current)}
+        >
+          {showAll ? "Show fewer" : `Show all ${countFormat.format(visible.length)}`}
+        </Button>
       )}
     </section>
   );

@@ -19,12 +19,14 @@ import {
   PlusCircle,
   Search,
   ShieldAlert,
+  Siren,
   Ticket,
   Users,
   Utensils,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
+import { onClubsChanged } from "@/components/clubs/club-level";
 import { DemoRoleSwitch } from "@/components/onboarding/demo-role-switch";
 import {
   Sidebar,
@@ -46,7 +48,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { listMyClubs } from "@/lib/db";
-import { canVisit, pathAccess, roleHome, welcomeHref } from "@/lib/roles";
+import { canOrganize, canVisit, pathAccess, roleHome, welcomeHref } from "@/lib/roles";
 import type { Role } from "@/lib/types";
 
 // Mobbin reference: Square dashboard sidebar (grouped sections with small
@@ -62,7 +64,7 @@ const EXPLORE: NavGroup = {
     { href: "/map", label: "Map", icon: MapIcon },
     { href: "/food", label: "Free food", icon: Utensils },
     { href: "/clubs", label: "Clubs", icon: Building2 },
-    { href: "/safety", label: "Safety notices", icon: ShieldAlert },
+    { href: "/safety", label: "Safety notices", icon: ShieldAlert, exact: true },
   ],
 };
 
@@ -88,60 +90,96 @@ const RECRUITER: NavGroup = {
   items: [{ href: "/recruiters", label: "Find students", icon: Search }],
 };
 
-// For a student or faculty member who is in a club.
+const SAFETY: NavGroup = {
+  label: "Campus safety",
+  items: [{ href: "/safety/alerts", label: "Post an alert", icon: Siren }],
+};
+
+// For the owner and organizers of a club.
 const CLUBS: NavGroup = {
   label: "For clubs",
   items: [
     { href: "/host", label: "Dashboard", icon: LayoutDashboard, exact: true },
     { href: "/post", label: "Post an event", icon: PlusCircle },
+    { href: "/host/food", label: "Leftover food", icon: Utensils },
     { href: "/host/clubs", label: "My clubs", icon: Users },
     { href: "/host/analytics", label: "Analytics", icon: ChartColumn },
     { href: "/host/reports", label: "Reports", icon: FileSpreadsheet },
   ],
 };
 
-// And for one who is not in a club yet.
+// A club member helps at events: the door and leftover food, no data and no posting.
+const MEMBER_PATHS = ["/host", "/host/food", "/host/clubs"];
+const CLUBS_MEMBER: NavGroup = {
+  label: "For clubs",
+  items: CLUBS.items.filter((item) => MEMBER_PATHS.includes(item.href)),
+};
+
+// And for someone who is not in a club yet.
 const START_CLUB: NavGroup = {
   label: "For clubs",
   items: [{ href: "/host/clubs", label: "Start a club", icon: Users }],
 };
 
-const ALL_ITEMS = [EXPLORE, STUDENT, FACULTY, RECRUITER, CLUBS].flatMap((group) => group.items);
+const ALL_ITEMS = [EXPLORE, STUDENT, FACULTY, RECRUITER, SAFETY, CLUBS].flatMap(
+  (group) => group.items,
+);
 
-// inClub is null while the membership is still loading: the club group then waits.
-function navGroups(role: Role | null, inClub: boolean | null): NavGroup[] {
+// "organizer" also covers the owner. The best level across the account's clubs.
+type ClubAccess = "none" | "member" | "organizer";
+
+// access is null while the membership is still loading: the club group then waits.
+function navGroups(role: Role | null, access: ClubAccess | null): NavGroup[] {
   const groups = [EXPLORE];
   if (role === "student") groups.push(STUDENT);
   if (role === "faculty") groups.push(FACULTY);
-  if ((role === "student" || role === "faculty") && inClub !== null) {
-    groups.push(inClub ? CLUBS : START_CLUB);
+  if ((role === "student" || role === "faculty") && access !== null) {
+    groups.push(access === "organizer" ? CLUBS : access === "member" ? CLUBS_MEMBER : START_CLUB);
   }
   if (role === "recruiter") groups.push(RECRUITER);
+  if (role === "safety") groups.push(SAFETY);
   return groups;
 }
 
-// Whether the account organizes or belongs to a club. Checked again on each
-// page until it is true, so the group appears right after starting a club.
-function useInClub(userId: string | null, role: Role | null, pathname: string): boolean | null {
-  const [known, setKnown] = useState<{ userId: string; inClub: boolean } | null>(null);
+// The account's best level across its clubs. Read again on every page, when the
+// window is looked at again, and right after a club is created or joined or a
+// level changes, so the group follows without a reload.
+function useClubAccess(userId: string | null, role: Role | null, pathname: string): ClubAccess | null {
+  const [known, setKnown] = useState<{ userId: string; access: ClubAccess } | null>(null);
+  const [tick, setTick] = useState(0);
   const eligible = role === "student" || role === "faculty";
-  const inClub = eligible && known?.userId === userId ? known.inClub : null;
-  const recheck = inClub ? "" : pathname;
+
+  useEffect(() => {
+    const again = () => setTick((current) => current + 1);
+    const stop = onClubsChanged(again);
+    window.addEventListener("focus", again);
+    return () => {
+      stop();
+      window.removeEventListener("focus", again);
+    };
+  }, []);
 
   useEffect(() => {
     if (!eligible || !userId) return;
     let cancelled = false;
     listMyClubs()
       .then((clubs) => {
-        if (!cancelled) setKnown({ userId, inClub: clubs.length > 0 });
+        if (cancelled) return;
+        const access: ClubAccess =
+          clubs.length === 0
+            ? "none"
+            : clubs.some((club) => canOrganize(club.role))
+              ? "organizer"
+              : "member";
+        setKnown({ userId, access });
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [eligible, userId, recheck]);
+  }, [eligible, userId, pathname, tick]);
 
-  return inClub;
+  return eligible && known?.userId === userId ? known.access : null;
 }
 
 function isActive(pathname: string, item: NavItem): boolean {
@@ -164,7 +202,7 @@ const TITLES: [RegExp, string][] = [
   [/^\/host\/[^/]+\/check-in/, "Check in"],
   [/^\/host\/[^/]+\/food/, "Leftover food"],
   [/^\/host\/reports(\/|$)/, "Reports"],
-  [/^\/host\/(?!clubs|analytics|reports)[^/]+$/, "Manage event"],
+  [/^\/host\/(?!clubs|analytics|reports|food)[^/]+$/, "Manage event"],
   [/^\/help\/(?!new|mine)[^/]+/, "Help request"],
 ];
 
@@ -309,7 +347,7 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const { user, role, ready } = useAuth();
-  const inClub = useInClub(user?.id ?? null, role, pathname);
+  const clubAccess = useClubAccess(user?.id ?? null, role, pathname);
   const current = ALL_ITEMS.find((item) => isActive(pathname, item));
   const title = pageTitle(pathname) ?? current?.label ?? "";
 
@@ -346,7 +384,7 @@ export function AppShell({
         </SidebarHeader>
 
         <SidebarContent>
-          <NavLinks groups={navGroups(role, inClub)} />
+          <NavLinks groups={navGroups(role, clubAccess)} />
         </SidebarContent>
 
         <SidebarFooter>

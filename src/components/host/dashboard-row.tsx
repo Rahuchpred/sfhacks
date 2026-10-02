@@ -17,6 +17,8 @@ export type DashboardRowProps = {
   clubLabel?: string;
   // True once the start time has passed: leftover food can be posted from then on.
   started?: boolean;
+  // False for a club member, who sees the guest list but cannot edit the event.
+  canManage?: boolean;
 };
 
 // "7:00 PM", or "Oct 9, 7:00 PM" when the event ends on another day.
@@ -25,7 +27,14 @@ function endLabel(event: CampusEvent): string {
   return sameDay ? formatClock(event.endsAt) : formatStamp(event.endsAt);
 }
 
-export function DashboardRow({ event, building, phase, clubLabel, started }: DashboardRowProps) {
+export function DashboardRow({
+  event,
+  building,
+  phase,
+  clubLabel,
+  started,
+  canManage = true,
+}: DashboardRowProps) {
   const live = phase === "now";
   const start = formatClock(event.startsAt);
   const end = endLabel(event);
@@ -91,10 +100,10 @@ export function DashboardRow({ event, building, phase, clubLabel, started }: Das
           </Link>
           <Link
             href={`/host/${event.id}`}
-            aria-label={`Manage ${event.title}`}
+            aria-label={`${canManage ? "Manage" : "Guest list for"} ${event.title}`}
             className={cn(buttonVariants({ variant: "outline" }), ACTION)}
           >
-            Manage
+            {canManage ? "Manage" : "Guest list"}
             <ArrowRight aria-hidden="true" />
           </Link>
           {started && event.hasFood && (

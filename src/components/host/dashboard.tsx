@@ -5,10 +5,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { CalendarPlus, TriangleAlert, User, Users } from "lucide-react";
 import { useUser } from "@/components/auth-provider";
+import { LevelBadge } from "@/components/clubs/club-level";
 import { useNow } from "@/components/food/countdown";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { listBuildings, listMyClubs, listMyHostedEvents, subscribeToCampus } from "@/lib/db";
+import { canOrganize } from "@/lib/roles";
 import type { Building, CampusEvent, MyClub } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { DashboardRow } from "./dashboard-row";
@@ -253,6 +255,9 @@ export function Dashboard() {
     </p>
   );
 
+  // Someone who is a member everywhere helps at events and posts none for a club.
+  const organizesAny = clubs.length === 0 || clubs.some((club) => canOrganize(club.role));
+
   if (events.length === 0) {
     return (
       <div className="space-y-6">
@@ -261,13 +266,19 @@ export function Dashboard() {
           <div className="flex size-12 items-center justify-center rounded-full bg-primary/10">
             <CalendarPlus aria-hidden="true" className="size-6 text-primary" />
           </div>
-          <p className="text-base font-medium text-balance">You have not posted an event yet</p>
-          <p className="text-sm text-pretty text-muted-foreground">
-            Post one and its guest list and check-in show up here.
+          <p className="text-base font-medium text-balance">
+            {organizesAny ? "You have not posted an event yet" : "No club events yet"}
           </p>
-          <Link href="/post" className={cn(buttonVariants(), "h-10 px-4")}>
-            Post an event
-          </Link>
+          <p className="text-sm text-pretty text-muted-foreground">
+            {organizesAny
+              ? "Post one and its guest list and check-in show up here."
+              : "Your club's events show up here, with check-in and leftover food."}
+          </p>
+          {organizesAny && (
+            <Link href="/post" className={cn(buttonVariants(), "h-10 px-4")}>
+              Post an event
+            </Link>
+          )}
         </div>
       </div>
     );
@@ -302,7 +313,10 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       <dl className={TILES}>
-        <StatTile label="Events hosted" value={numberFormat.format(events.length)} />
+        <StatTile
+          label={organizesAny ? "Events hosted" : "Club events"}
+          value={numberFormat.format(events.length)}
+        />
         <StatTile label="Total check-ins" value={numberFormat.format(checkIns)} />
         <StatTile
           label="Average turnout"
@@ -370,6 +384,7 @@ export function Dashboard() {
                       <span className="text-sm text-muted-foreground tabular-nums">
                         {numberFormat.format(group.items.length)}
                       </span>
+                      {group.club && <LevelBadge level={group.club.role} />}
                       {group.club && (
                         <Link
                           href={`/clubs/${group.club.id}`}
@@ -414,6 +429,8 @@ export function Dashboard() {
                                     !group.club && event.clubId ? event.clubName : undefined
                                   }
                                   started={Date.parse(event.startsAt) <= now}
+                                  // A member works the door and the food, and edits nothing.
+                                  canManage={!group.club || canOrganize(group.club.role)}
                                 />
                               </li>
                             ))}

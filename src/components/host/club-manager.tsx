@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { TriangleAlert, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useUser } from "@/components/auth-provider";
+import { notifyClubsChanged } from "@/components/clubs/club-level";
 import { Field, fieldControlProps } from "@/components/post/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,9 +16,12 @@ import {
   joinClub,
   listClubMembers,
   listMyClubs,
+  removeClubMember,
   saveMyProfile,
+  setClubMemberLevel,
 } from "@/lib/db";
-import type { MyClub } from "@/lib/types";
+import { CLUB_LEVEL_LABELS } from "@/lib/roles";
+import type { ClubLevel, ClubMember, MyClub } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ClubCard, type ClubRoster } from "./club-card";
 
@@ -42,6 +46,14 @@ function messageOf(error: unknown): string {
     if (typeof message === "string" && message) return message;
   }
   return "Check your connection and try again.";
+}
+
+// The reasons the level functions give, in words.
+function levelMessage(error: unknown): string {
+  const message = messageOf(error);
+  if (message.includes("not_owner")) return "Only the club owner can do that.";
+  if (message.includes("not_found")) return "They are no longer in the club.";
+  return "Try again in a moment.";
 }
 
 function issue(message: string | undefined) {
@@ -99,7 +111,7 @@ export function ClubManager() {
   }, [userId, loadRoster]);
 
   useEffect(() => {
-    // An organizer who joined on another device shows up when this tab is looked at again.
+    // Someone who joined, or a level the owner changed, shows up when this tab is looked at again.
     const onFocus = () => void load();
     onFocus();
     window.addEventListener("focus", onFocus);
@@ -117,6 +129,29 @@ export function ClubManager() {
     setRetrying(true);
     await load();
     setRetrying(false);
+  };
+
+  // Owner only. The database refuses anyone else.
+  const setLevel = async (club: MyClub, member: ClubMember, level: Exclude<ClubLevel, "owner">) => {
+    try {
+      await setClubMemberLevel(club.id, member.uid, level);
+      toast.success(`${member.name} is now ${level === "organizer" ? "an organizer" : "a member"}`);
+    } catch (error) {
+      toast.error(`Could not change the level. ${levelMessage(error)}`);
+    }
+    await loadRoster(club.id);
+  };
+
+  const removeMember = async (club: MyClub, member: ClubMember): Promise<boolean> => {
+    try {
+      await removeClubMember(club.id, member.uid);
+      toast.success(`${member.name} removed from ${club.name}`);
+      await loadRoster(club.id);
+      return true;
+    } catch (error) {
+      toast.error(`Could not remove ${member.name}. ${levelMessage(error)}`);
+      return false;
+    }
   };
 
   const markFresh = (clubId: string) => {
@@ -158,6 +193,8 @@ export function ClubManager() {
       setClubName("");
       markFresh(club.id);
       await load();
+      // The sidebar shows the club pages right away.
+      notifyClubsChanged();
       toast.success(`${club.name} created`);
     } catch (error) {
       toast.error(`Could not create the club. ${messageOf(error)}`);
@@ -174,6 +211,7 @@ export function ClubManager() {
       codeRef.current?.focus();
       return;
     }
+    // Members do not see their club's code, so the database answers for those.
     const mine = clubs?.find((club) => club.joinCode === code);
     if (mine) {
       setErrors({ code: `You are already in ${mine.name}.` });
@@ -193,7 +231,11 @@ export function ClubManager() {
       setCode("");
       markFresh(club.id);
       await load();
-      toast.success(`You joined ${club.name}`);
+      notifyClubsChanged();
+      const level = (await listMyClubs().catch(() => [])).find((mine) => mine.id === club.id)?.role;
+      toast.success(
+        level ? `You joined ${club.name} as ${CLUB_LEVEL_LABELS[level].toLowerCase()}` : `You joined ${club.name}`,
+      );
     } catch (error) {
       toast.error(`Could not join. ${messageOf(error)}`);
     } finally {
@@ -248,7 +290,7 @@ export function ClubManager() {
           <Field
             id="club-full-name"
             label="Your name"
-            hint="Co-organizers see it in the club."
+            hint="People in your club see it."
             issues={issue(errors.fullName)}
             className="sm:max-w-sm"
           >
@@ -345,7 +387,7 @@ export function ClubManager() {
           </div>
           <p className="text-base font-medium text-balance">No clubs yet</p>
           <p className="text-sm text-pretty text-muted-foreground">
-            Share events and check-in with your co-organizers.
+            Start one, or join with a code from a club owner.
           </p>
         </div>
       ) : (
@@ -361,6 +403,8 @@ export function ClubManager() {
                   roster={rosters[club.id] ?? null}
                   myId={userId}
                   fresh={club.id === freshId}
+                  onSetLevel={(member, level) => setLevel(club, member, level)}
+                  onRemove={(member) => removeMember(club, member)}
                   onRetryRoster={() => {
                     setRosters((current) => ({ ...current, [club.id]: null }));
                     void loadRoster(club.id);
