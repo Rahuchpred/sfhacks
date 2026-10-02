@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "Gator Radar",
+    "slug": "gator-radar",
+    "scheme": "gatorradar",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F7F5FB",
+    "ios": {
+      "bundleIdentifier": "edu.sfsu.gatorradar",
+      "supportsTablet": false,
+      "infoPlist": {
+        "CADisableMinimumFrameDurationOnPhone": true,
+        "NSCameraUsageDescription": "Scan a student's ticket QR code at the door.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "edu.sfsu.gatorradar",
+      "adaptiveIcon": {
+        "backgroundColor": "#463077",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Scan a student's ticket QR code at the door.",
+          "barcodeScannerEnabled": true,
+          "recordAudioAndroid": false
+        }
+      ],
+      "expo-maps"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
