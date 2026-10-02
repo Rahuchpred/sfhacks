@@ -1,14 +1,15 @@
 "use client";
 
+// Mobbin reference: Calendly, event types (one list split into named owner groups, actions on each row).
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CalendarPlus, TriangleAlert } from "lucide-react";
+import { CalendarPlus, TriangleAlert, User, Users } from "lucide-react";
 import { useUser } from "@/components/auth-provider";
 import { useNow } from "@/components/food/countdown";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { listBuildings, listMyHostedEvents, subscribeToCampus } from "@/lib/db";
-import type { Building, CampusEvent } from "@/lib/types";
+import { listBuildings, listMyClubs, listMyHostedEvents, subscribeToCampus } from "@/lib/db";
+import type { Building, CampusEvent, MyClub } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { DashboardRow } from "./dashboard-row";
 import { type EventPhase, eventPhase, turnoutRate } from "./host-utils";
@@ -66,7 +67,28 @@ function groupByDay(list: CampusEvent[], now: number): DayGroup[] {
   return [...groups.values()];
 }
 
-type State = { events: CampusEvent[] | null; error: string | null };
+// One club the host organizes, or "Just me" (club is null) for everything else.
+type ClubGroup = { key: string; label: string; club: MyClub | null; items: CampusEvent[] };
+
+// Clubs first in name order, then "Just me". Groups with nothing to show are left out.
+function groupByClub(list: CampusEvent[], clubs: MyClub[]): ClubGroup[] {
+  const mine = new Set(clubs.map((club) => club.id));
+  const groups: ClubGroup[] = clubs.map((club) => ({
+    key: club.id,
+    label: club.name,
+    club,
+    items: list.filter((event) => event.clubId === club.id),
+  }));
+  groups.push({
+    key: "solo",
+    label: "Just me",
+    club: null,
+    items: list.filter((event) => !event.clubId || !mine.has(event.clubId)),
+  });
+  return groups.filter((group) => group.items.length > 0);
+}
+
+type State = { events: CampusEvent[] | null; clubs: MyClub[]; error: string | null };
 
 function StatTile({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
   return (
@@ -88,7 +110,7 @@ export function Dashboard() {
   const user = useUser();
   const userId = user?.id ?? null;
   const now = useNow(30_000);
-  const [state, setState] = useState<State>({ events: null, error: null });
+  const [state, setState] = useState<State>({ events: null, clubs: [], error: null });
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [retrying, setRetrying] = useState(false);
   // Null until the host picks a tab, so the default can follow the data.
@@ -98,10 +120,17 @@ export function Dashboard() {
     // Before anonymous sign-in finishes the list would come back empty.
     if (!userId) return null;
     try {
-      return { events: await listMyHostedEvents(), error: null };
+      // Club names are a nicety: without them every event lands under "Just me".
+      const [events, clubs] = await Promise.all([
+        listMyHostedEvents(),
+        listMyClubs().catch((): MyClub[] => []),
+      ]);
+      clubs.sort((a, b) => a.name.localeCompare(b.name));
+      return { events, clubs, error: null };
     } catch (error) {
       return {
         events: null,
+        clubs: [],
         error: error instanceof Error ? error.message : "Check your connection.",
       };
     }
@@ -109,7 +138,7 @@ export function Dashboard() {
 
   // A failed refresh keeps the last good list on screen.
   const apply = useCallback((next: State) => {
-    setState((current) => (next.events ? next : { events: current.events, error: next.error }));
+    setState((current) => (next.events ? next : { ...current, error: next.error }));
   }, []);
 
   useEffect(() => {
@@ -151,7 +180,7 @@ export function Dashboard() {
     [buildings],
   );
 
-  const { events, error } = state;
+  const { events, clubs, error } = state;
 
   if (!events && !error) {
     return (
@@ -261,7 +290,9 @@ export function Dashboard() {
   const upcoming = [...byPhase.now, ...byPhase.upcoming];
   const tab: Tab = tabChoice ?? (upcoming.length === 0 && byPhase.past.length > 0 ? "past" : "upcoming");
   const visible = tab === "upcoming" ? upcoming : byPhase.past;
-  const days = groupByDay(visible, now);
+  const groups = groupByClub(visible, clubs);
+  // A host with no clubs sees one plain list, with no "Just me" heading over it.
+  const grouped = clubs.length > 0 || groups.some((group) => group.club);
   const liveIds = new Set(byPhase.now.map((event) => event.id));
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: "upcoming", label: "Upcoming", count: upcoming.length },
@@ -270,13 +301,6 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
-        <Link href="/post" className={cn(buttonVariants({ variant: "outline" }), "h-10 px-4")}>
-          <CalendarPlus aria-hidden="true" />
-          Post an event
-        </Link>
-      </div>
-
       <dl className={TILES}>
         <StatTile label="Events hosted" value={numberFormat.format(events.length)} />
         <StatTile label="Total check-ins" value={numberFormat.format(checkIns)} />
@@ -314,37 +338,94 @@ export function Dashboard() {
           </div>
         </div>
 
-        {days.length === 0 ? (
+        {groups.length === 0 ? (
           <p className="py-8 text-center text-sm text-pretty text-muted-foreground">
             {tab === "upcoming"
               ? "Nothing coming up. Past events are under Past."
               : "No past events yet. They show up here once they end."}
           </p>
         ) : (
-          <ul>
-            {days.map((day) => (
-              <li key={day.key} className={cn("group/day", DAY)}>
-                <div className={DAY_LABEL}>
-                  <h2 className="font-heading text-base font-medium">{day.label}</h2>
-                  {day.weekday && <p className="text-sm text-muted-foreground">{day.weekday}</p>}
-                </div>
-                <div className={DAY_BODY}>
-                  <span aria-hidden="true" className={DAY_DOT} />
-                  <ul className="space-y-3">
-                    {day.items.map((event) => (
-                      <li key={event.id} className="min-w-0">
-                        <DashboardRow
-                          event={event}
-                          building={buildingById.get(event.buildingId)}
-                          phase={tab === "past" ? "past" : liveIds.has(event.id) ? "now" : "upcoming"}
-                        />
+          <div className="space-y-8">
+            {groups.map((group) => {
+              const GroupIcon = group.club ? Users : User;
+              const headingId = `host-group-${group.key}`;
+              return (
+                <section
+                  key={group.key}
+                  aria-labelledby={grouped ? headingId : undefined}
+                  className="space-y-4"
+                >
+                  {grouped && (
+                    <div className="flex min-w-0 items-center gap-2 border-b border-foreground/10 pb-2">
+                      <GroupIcon
+                        aria-hidden="true"
+                        className="size-4 shrink-0 text-muted-foreground"
+                      />
+                      <h2
+                        id={headingId}
+                        className="min-w-0 truncate font-heading text-base font-semibold"
+                      >
+                        {group.label}
+                      </h2>
+                      <span className="text-sm text-muted-foreground tabular-nums">
+                        {numberFormat.format(group.items.length)}
+                      </span>
+                      {group.club && (
+                        <Link
+                          href={`/clubs/${group.club.id}`}
+                          aria-label={`Club page for ${group.club.name}`}
+                          className={cn(
+                            buttonVariants({ variant: "ghost" }),
+                            "-my-1 ml-auto h-9 shrink-0 px-3 text-muted-foreground",
+                          )}
+                        >
+                          Club page
+                        </Link>
+                      )}
+                    </div>
+                  )}
+                  <ul>
+                    {groupByDay(group.items, now).map((day) => (
+                      <li key={day.key} className={cn("group/day", DAY)}>
+                        <div className={DAY_LABEL}>
+                          <h3 className="font-heading text-base font-medium">{day.label}</h3>
+                          {day.weekday && (
+                            <p className="text-sm text-muted-foreground">{day.weekday}</p>
+                          )}
+                        </div>
+                        <div className={DAY_BODY}>
+                          <span aria-hidden="true" className={DAY_DOT} />
+                          <ul className="space-y-3">
+                            {day.items.map((event) => (
+                              <li key={event.id} className="min-w-0">
+                                <DashboardRow
+                                  event={event}
+                                  building={buildingById.get(event.buildingId)}
+                                  phase={
+                                    tab === "past"
+                                      ? "past"
+                                      : liveIds.has(event.id)
+                                        ? "now"
+                                        : "upcoming"
+                                  }
+                                  // The heading names the club. Only an event of a club the
+                                  // host is no longer in, filed under "Just me", needs a label.
+                                  clubLabel={
+                                    !group.club && event.clubId ? event.clubName : undefined
+                                  }
+                                  started={Date.parse(event.startsAt) <= now}
+                                />
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
                       </li>
                     ))}
                   </ul>
-                </div>
-              </li>
-            ))}
-          </ul>
+                </section>
+              );
+            })}
+          </div>
         )}
       </section>
     </div>

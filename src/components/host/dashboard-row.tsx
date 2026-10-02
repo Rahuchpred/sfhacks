@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CalendarDays, MapPin, ScanLine, Users } from "lucide-react";
+import { ArrowRight, CalendarDays, MapPin, ScanLine, Users, Utensils } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import type { Building, CampusEvent } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,10 @@ export type DashboardRowProps = {
   event: CampusEvent;
   building: Building | undefined;
   phase: EventPhase;
+  // Set when the list around the row does not already make the club plain.
+  clubLabel?: string;
+  // True once the start time has passed: leftover food can be posted from then on.
+  started?: boolean;
 };
 
 // "7:00 PM", or "Oct 9, 7:00 PM" when the event ends on another day.
@@ -21,7 +25,7 @@ function endLabel(event: CampusEvent): string {
   return sameDay ? formatClock(event.endsAt) : formatStamp(event.endsAt);
 }
 
-export function DashboardRow({ event, building, phase }: DashboardRowProps) {
+export function DashboardRow({ event, building, phase, clubLabel, started }: DashboardRowProps) {
   const live = phase === "now";
   const start = formatClock(event.startsAt);
   const end = endLabel(event);
@@ -47,6 +51,11 @@ export function DashboardRow({ event, building, phase }: DashboardRowProps) {
           <span className="min-w-0 break-words">
             {live ? `${start} until ${end}` : `${start} to ${end}`}
           </span>
+          {clubLabel && (
+            <span className="max-w-full truncate rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+              {clubLabel}
+            </span>
+          )}
         </p>
 
         <h3 className="line-clamp-2 min-w-0 text-lg leading-snug font-medium break-words">
@@ -88,6 +97,20 @@ export function DashboardRow({ event, building, phase }: DashboardRowProps) {
             Manage
             <ArrowRight aria-hidden="true" />
           </Link>
+          {started && event.hasFood && (
+            <Link
+              href={`/host/${event.id}/food`}
+              aria-label={`Post leftover food from ${event.title}`}
+              className={cn(
+                buttonVariants(),
+                ACTION,
+                "bg-accent text-accent-foreground hover:bg-accent/80",
+              )}
+            >
+              <Utensils aria-hidden="true" />
+              Leftover food
+            </Link>
+          )}
           <Link
             href={`/events/${event.id}`}
             aria-label={`View the page for ${event.title}`}
