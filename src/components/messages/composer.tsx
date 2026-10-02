@@ -75,7 +75,7 @@ export function Composer({
           type="submit"
           disabled={!body}
           aria-label="Send"
-          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-[transform,opacity,background-color] duration-150 ease-out hover:bg-primary/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:scale-[0.94] disabled:opacity-40 motion-reduce:transition-none"
+          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-[transform,opacity,background-color] duration-150 ease-out hover:bg-primary/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:scale-[0.97] disabled:opacity-40 motion-reduce:transition-none"
         >
           <ArrowUp aria-hidden className="size-4" />
         </button>

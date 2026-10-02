@@ -91,7 +91,7 @@ function Bubble({
         mine ? !first && "rounded-tr-md" : !first && "rounded-tl-md",
         mine ? !last && "rounded-br-md" : !last && "rounded-bl-md",
         fresh &&
-          "animate-in duration-200 ease-out fade-in-0 slide-in-from-bottom-1 motion-reduce:animate-none",
+          "animate-in duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] fade-in-0 slide-in-from-bottom-1 motion-reduce:slide-in-from-bottom-0",
         dimmed && "opacity-60",
       )}
     >
@@ -117,6 +117,8 @@ export function Thread({ id }: { id: string }) {
   const stick = useRef(true);
   const lastSeen = useRef<string | null>(null);
   const keys = useRef(0);
+  // Sends go out one at a time, so quick messages arrive in the order typed.
+  const queue = useRef<Promise<void>>(Promise.resolve());
 
   const reload = useCallback(async () => {
     const [conversation, list] = await Promise.all([getConversation(id), listMessages(id)]);
@@ -184,7 +186,11 @@ export function Thread({ id }: { id: string }) {
     element.scrollTo({ top: element.scrollHeight, behavior: calm ? "auto" : "smooth" });
   }
 
-  async function deliver(item: Pending) {
+  function deliver(item: Pending) {
+    queue.current = queue.current.then(() => post(item));
+  }
+
+  async function post(item: Pending) {
     try {
       const sent = await sendMessage(id, item.body);
       setPending((current) => current.filter((other) => other.key !== item.key));
@@ -455,7 +461,7 @@ export function Thread({ id }: { id: string }) {
                 const last = index === pending.length - 1;
                 return (
                   <li key={item.key} className={cn("flex flex-col", first ? "mt-3" : "mt-0.5")}>
-                    <Bubble mine first={first} last={last || item.status === "failed"} fresh dimmed>
+                    <Bubble mine first={first} last={last || item.status === "failed"} fresh={false} dimmed>
                       {item.body}
                     </Bubble>
                     {item.status === "failed" ? (

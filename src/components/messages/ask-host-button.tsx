@@ -18,12 +18,14 @@ import { useEventMessaging } from "./use-event-messaging";
 // Hidden from the team itself and on events nobody hosts. A guest signs in first.
 export function AskHostButton({ eventId, className }: { eventId: string; className?: string }) {
   const router = useRouter();
-  const { role } = useAuth();
+  const { role, user, ready } = useAuth();
   const requireAccount = useRequireAccount();
   const messaging = useEventMessaging(eventId);
   const [busy, setBusy] = useState(false);
 
-  if (!messaging || !messaging.hasHost || messaging.isTeam) return null;
+  // A visitor whose guest session could not start cannot be checked: they only get the way in.
+  const sessionless = ready && !user;
+  if (!sessionless && (!messaging || !messaging.hasHost || messaging.isTeam)) return null;
 
   async function ask() {
     if (busy || !requireAccount()) return;

@@ -21,7 +21,7 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "question", label: "Events" },
   { value: "announcement", label: "Announcements" },
-  { value: "help", label: "Help board" },
+  { value: "help", label: "Help" },
 ];
 
 function Avatar({ conversation }: { conversation: Conversation }) {
@@ -132,7 +132,7 @@ export function InboxList({ activeId }: { activeId: string | null }) {
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="shrink-0 space-y-3 px-5 pt-5 pb-3">
         <h1 className="text-xl font-semibold tracking-tight">Messages</h1>
-        <div role="group" aria-label="Filter" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 py-0.5">
+        <div role="group" aria-label="Filter" className="flex flex-wrap gap-1.5">
           {FILTERS.map((item) => {
             const unread = conversations.filter(
               (conversation) =>
@@ -145,7 +145,7 @@ export function InboxList({ activeId }: { activeId: string | null }) {
                 aria-pressed={filter === item.value}
                 onClick={() => setFilter(item.value)}
                 className={cn(
-                  "flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-ring active:scale-[0.97] motion-reduce:transition-none",
+                  "flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-[0.8125rem] font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-ring active:scale-[0.97] motion-reduce:transition-none",
                   filter === item.value
                     ? "border-primary bg-primary text-primary-foreground"
                     : "hover:bg-secondary",
