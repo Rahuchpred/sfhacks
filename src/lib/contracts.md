@@ -18,8 +18,9 @@ The single source of truth for data shapes. Frozen: change these only in the mai
 
 - `listBuildings()`, `listUpcomingEvents()`, `listOpenRescues()`
 - `createEvent(event)`, `createRescue(rescue)`
-- `claimPortion(rescueId)`: atomic, one per user, returns `{ ok, portionsLeft, reason }`
-- `listMyClaims()`: rescue ids the signed-in user has claimed
+- `claimPortion(rescueId)`: atomic, takes one portion, returns `{ ok, portionsLeft, reason }`. A student can call it until they hold `rescue.maxPerPerson` portions, then it returns `already_claimed`
+- `listMyClaims()`: rescue ids the signed-in user has claimed. An id repeats once per portion held
+- `FoodRescue.maxPerPerson` (1 to 10): set by the poster in the food form, default 1
 - `uploadImage(file)`: returns a public URL
 - `useCampus()` in `src/lib/use-campus.ts`: live buildings, events and rescues for any client component
 

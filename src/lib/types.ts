@@ -37,6 +37,7 @@ export type FoodRescue = {
   items: string;
   portions: number;
   portionsLeft: number;
+  maxPerPerson: number; // set by the poster, 1 to 10
   dietary: string[];
   safeUntil: string; // ISO 8601
   status: RescueStatus;

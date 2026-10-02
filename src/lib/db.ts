@@ -41,6 +41,7 @@ export function toRescue(row: RescueRow): FoodRescue {
     items: row.items,
     portions: row.portions,
     portionsLeft: row.portions_left,
+    maxPerPerson: row.max_per_person,
     dietary: row.dietary,
     safeUntil: row.safe_until,
     status: row.status as FoodRescue["status"],
@@ -108,6 +109,7 @@ export async function createRescue(rescue: NewFoodRescue): Promise<FoodRescue> {
       items: rescue.items,
       portions: rescue.portions,
       portions_left: rescue.portions,
+      max_per_person: rescue.maxPerPerson,
       dietary: rescue.dietary,
       safe_until: rescue.safeUntil,
     })
@@ -129,7 +131,7 @@ export async function claimPortion(rescueId: string): Promise<ClaimResult> {
   };
 }
 
-// Rescue ids the signed-in user has claimed.
+// Rescue ids the signed-in user has claimed. An id repeats once per portion held.
 export async function listMyClaims(): Promise<string[]> {
   const { data, error } = await supabase.from("claims").select("rescue_id");
   if (error) throw error;

@@ -160,6 +160,7 @@ export type Database = {
           event_id: string | null
           id: string
           items: string
+          max_per_person: number
           photo_url: string
           portions: number
           portions_left: number
@@ -175,6 +176,7 @@ export type Database = {
           event_id?: string | null
           id?: string
           items: string
+          max_per_person?: number
           photo_url: string
           portions: number
           portions_left: number
@@ -190,6 +192,7 @@ export type Database = {
           event_id?: string | null
           id?: string
           items?: string
+          max_per_person?: number
           photo_url?: string
           portions?: number
           portions_left?: number
