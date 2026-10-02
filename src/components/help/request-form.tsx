@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Check, CircleAlert, Loader2, Plus, Sparkles, X } from "lucide-react";
+import { Check, CircleAlert, Loader2, Plus, X } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,28 +13,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { postJson } from "@/lib/api";
 import { createHelpRequest, listBuildings } from "@/lib/db";
-import {
-  REWARD_TYPES,
-  type Building,
-  type HelpRequest,
-  type RewardType,
-  type StructureHelpResponse,
-} from "@/lib/types";
+import { REWARD_TYPES, type Building, type HelpRequest, type RewardType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-// Mobbin references: Perplexity "New Health Task" (one text box and one button
-// to start) for step one, and Cofounder "Create New Skill" (a single column of
-// labeled fields with the primary button at the bottom) for the form.
+// Mobbin reference: Cofounder "Create New Skill" (a single column of labeled
+// fields with the primary button at the bottom). A plain form, no AI.
 
 const NO_BUILDING = "none";
 const MAX_SKILLS = 6;
 const SPOTS = Array.from({ length: 10 }, (_, index) => index + 1);
-
-type Stage = "write" | "reading" | "edit" | "done";
 
 type Draft = {
   title: string;
@@ -119,11 +108,7 @@ function FieldError({ id, message }: { id: string; message: string }) {
 }
 
 export function RequestForm() {
-  const [stage, setStage] = useState<Stage>("write");
-  const [text, setText] = useState("");
   const [draft, setDraft] = useState<Draft>(EMPTY);
-  const [fromAi, setFromAi] = useState(false);
-  const [aiFailed, setAiFailed] = useState(false);
   const [touched, setTouched] = useState<Partial<Record<ErrorKey, boolean>>>({});
   const [attempted, setAttempted] = useState(false);
   const [skillInput, setSkillInput] = useState("");
@@ -132,9 +117,6 @@ export function RequestForm() {
   const [publishError, setPublishError] = useState<string | null>(null);
   const [created, setCreated] = useState<HelpRequest | null>(null);
 
-  // The AI reads the text exactly once. Skipping only ignores a late answer.
-  const started = useRef(false);
-  const skipped = useRef(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
@@ -151,48 +133,13 @@ export function RequestForm() {
     };
   }, []);
 
-  // Move focus to the new step so keyboard and screen reader users follow along.
+  // Move focus to the confirmation so keyboard and screen reader users follow along.
   useEffect(() => {
-    if (stage === "edit" || stage === "done") headingRef.current?.focus();
-  }, [stage]);
+    if (created) headingRef.current?.focus();
+  }, [created]);
 
   function set<K extends keyof Draft>(key: K, value: Draft[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
-  }
-
-  async function readRequest() {
-    const trimmed = text.trim();
-    if (!trimmed || started.current) return;
-    started.current = true;
-    setStage("reading");
-    try {
-      const result = await postJson<StructureHelpResponse>("/api/ai/structure-help", {
-        text: trimmed,
-      });
-      if (skipped.current) return;
-      setDraft({
-        ...EMPTY,
-        title: result.title,
-        description: result.description,
-        timeNeeded: result.timeNeeded,
-        skills: result.skills.slice(0, MAX_SKILLS),
-        rewardType: result.rewardType,
-        rewardDetail: result.rewardDetail,
-        buildingId: result.buildingId,
-      });
-      setFromAi(true);
-    } catch {
-      if (skipped.current) return;
-      setDraft({ ...EMPTY, description: trimmed });
-      setAiFailed(true);
-    }
-    setStage("edit");
-  }
-
-  function skipReading() {
-    skipped.current = true;
-    setDraft({ ...EMPTY, description: text.trim() });
-    setStage("edit");
   }
 
   function addSkill() {
@@ -237,7 +184,6 @@ export function RequestForm() {
         spots: draft.spots,
       });
       setCreated(request);
-      setStage("done");
     } catch (error) {
       setPublishError(error instanceof Error ? error.message : "Could not publish. Try again.");
     } finally {
@@ -245,7 +191,7 @@ export function RequestForm() {
     }
   }
 
-  if (stage === "done" && created) {
+  if (created) {
     return (
       <div className="mx-auto flex max-w-md flex-col items-center gap-3 px-6 py-20 text-center">
         <div className="flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
@@ -274,94 +220,11 @@ export function RequestForm() {
     );
   }
 
-  if (stage === "write" || stage === "reading") {
-    const reading = stage === "reading";
-    return (
-      <div className="mx-auto max-w-2xl px-6 pt-12 pb-16 sm:pt-16">
-        <h1 className="text-center text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-          <label htmlFor="help-text">What do you need help with?</label>
-        </h1>
-
-        <form
-          className="mt-7 rounded-2xl border bg-card p-2 shadow-sm transition-shadow focus-within:border-ring focus-within:shadow-md motion-reduce:transition-none"
-          onSubmit={(event) => {
-            event.preventDefault();
-            readRequest();
-          }}
-        >
-          <textarea
-            id="help-text"
-            rows={6}
-            maxLength={2000}
-            readOnly={reading}
-            placeholder="In your own words, like: I need two students to help set up posters for our research day on Friday afternoon…"
-            className="block min-h-40 w-full resize-none bg-transparent px-3 py-2 text-base outline-none placeholder:text-muted-foreground read-only:text-muted-foreground"
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-          />
-          <div className="flex items-center justify-end gap-2 px-1 pb-1">
-            <Button type="submit" size="lg" className="h-10 px-4" disabled={reading || !text.trim()}>
-              {reading ? (
-                <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden />
-              ) : null}
-              {reading ? "Reading" : "Continue"}
-              {!reading && <ArrowRight aria-hidden />}
-            </Button>
-          </div>
-        </form>
-
-        <div role="status" aria-live="polite">
-          {reading && (
-            <div className="mt-6 rounded-2xl bg-secondary p-4">
-              <p className="flex items-center gap-2 font-medium">
-                <Sparkles className="size-4 text-primary" aria-hidden />
-                Reading your request
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">Up to 30 seconds. Keep this page open.</p>
-              <div className="mt-4 space-y-2" aria-hidden>
-                <Skeleton className="h-4 w-2/3 bg-primary/15 motion-reduce:animate-none" />
-                <Skeleton className="h-4 w-full bg-primary/15 motion-reduce:animate-none" />
-                <Skeleton className="h-4 w-1/2 bg-primary/15 motion-reduce:animate-none" />
-              </div>
-            </div>
-          )}
-        </div>
-        {reading && (
-          <div className="mt-3 text-center">
-            <Button type="button" variant="ghost" onClick={skipReading}>
-              Skip, fill it in myself
-            </Button>
-          </div>
-        )}
-      </div>
-    );
-  }
-
   const rewardError = shown("rewardType");
 
   return (
     <div className="mx-auto max-w-2xl px-6 pt-8 pb-16">
-      <h1
-        ref={headingRef}
-        tabIndex={-1}
-        className="text-2xl font-semibold tracking-tight outline-none"
-      >
-        Check your request
-      </h1>
-
-      {fromAi && (
-        <p className="mt-4 flex items-start gap-2 rounded-xl bg-secondary px-3.5 py-2.5 text-sm text-pretty">
-          <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
-          <span>
-            <span className="font-medium">AI draft.</span> Check every field before you publish.
-          </span>
-        </p>
-      )}
-      {aiFailed && (
-        <p role="status" className="mt-4 rounded-xl bg-secondary px-3.5 py-2.5 text-sm text-pretty">
-          We could not read your request. Fill in the form yourself.
-        </p>
-      )}
+      <h1 className="text-2xl font-semibold tracking-tight">Ask for help</h1>
 
       <form
         noValidate
