@@ -22,7 +22,14 @@ import type {
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Field, fieldControlProps, selectClass } from "./field";
-import { errorMessage, fromLocalInput, parseTags, postJson, toLocalInput } from "./form-utils";
+import {
+  errorMessage,
+  fromLocalInput,
+  parseTags,
+  postJson,
+  toLocalInput,
+  useLeaveWarning,
+} from "./form-utils";
 import { ImageDrop } from "./image-drop";
 import { IssueList } from "./issue-list";
 
@@ -222,6 +229,8 @@ export function EventForm({ buildings }: { buildings: Building[] }) {
     }
   }
 
+  useLeaveWarning(!published && (values !== EMPTY || flyerUrl !== null || text !== ""));
+
   const showIssues = checkState !== "idle";
   const local = localIssues(values);
   const allIssues = showIssues ? [...local, ...(check?.issues ?? [])] : [];
@@ -339,6 +348,7 @@ export function EventForm({ buildings }: { buildings: Building[] }) {
           <Textarea
             id="event-text"
             name="notes"
+            autoComplete="off"
             value={text}
             onChange={(event) => setText(event.target.value)}
             placeholder="boba + board games thurs 5pm cesar chavez, rosa parks room, free boba, all majors…"
@@ -363,7 +373,7 @@ export function EventForm({ buildings }: { buildings: Building[] }) {
             {extracting ? "Reading…" : "Fill in the form with AI"}
           </Button>
           <p aria-live="polite" className="text-sm text-muted-foreground">
-            {extracting ? "This can take a few seconds." : ""}
+            {extracting ? "This can take up to half a minute." : ""}
           </p>
         </div>
         {extractError && (
@@ -560,7 +570,7 @@ export function EventForm({ buildings }: { buildings: Building[] }) {
                 className="size-4 shrink-0 animate-spin text-muted-foreground motion-reduce:animate-none"
                 aria-hidden
               />
-              {checkState === "stale" ? "Rechecking after your edit…" : "Checking your event…"}
+              {checkState === "stale" ? "Rechecking after your edit…" : "Checking your event. This can take up to half a minute…"}
             </>
           )}
           {checkState === "idle" && (

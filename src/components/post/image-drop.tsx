@@ -51,7 +51,7 @@ export function ImageDrop({
       return;
     }
     if (file.size > MAX_BYTES) {
-      setError("That image is over 5 MB. Pick a smaller one.");
+      setError("That image is over 5\u00a0MB. Pick a smaller one.");
       return;
     }
 
@@ -123,7 +123,7 @@ export function ImageDrop({
             type="button"
             variant="outline"
             size="sm"
-            className="absolute top-2 right-2 h-8"
+            className="absolute top-2 right-2 h-8 bg-background! hover:bg-muted!"
             onClick={remove}
             disabled={disabled}
           >
@@ -162,7 +162,7 @@ export function ImageDrop({
           </span>
           <span className="text-sm font-medium">{label}</span>
           <span className="text-xs text-pretty text-muted-foreground">
-            {hint ?? "Drop an image here or click to choose. JPEG, PNG or WebP, up to 5 MB."}
+            {hint ?? "Drop an image here or click to choose. JPEG, PNG or WebP, up to 5\u00a0MB."}
           </span>
         </label>
       )}

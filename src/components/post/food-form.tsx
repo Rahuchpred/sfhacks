@@ -16,7 +16,14 @@ import type {
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Field, fieldControlProps, selectClass } from "./field";
-import { errorMessage, fromLocalInput, parseTags, postJson, toLocalInput } from "./form-utils";
+import {
+  errorMessage,
+  fromLocalInput,
+  parseTags,
+  postJson,
+  toLocalInput,
+  useLeaveWarning,
+} from "./form-utils";
 import { ImageDrop } from "./image-drop";
 
 type Values = {
@@ -72,6 +79,8 @@ export function FoodForm({ buildings }: { buildings: Building[] }) {
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [published, setPublished] = useState<FoodRescue | null>(null);
+
+  useLeaveWarning(!published && photoUrl !== null);
 
   async function runEstimate(imageUrl: string) {
     const id = ++estimateId.current;
@@ -222,7 +231,7 @@ export function FoodForm({ buildings }: { buildings: Building[] }) {
           {estimating && (
             <>
               <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden />
-              Estimating from your photo. This can take a few seconds…
+              Estimating from your photo. This can take up to half a minute…
             </>
           )}
         </p>

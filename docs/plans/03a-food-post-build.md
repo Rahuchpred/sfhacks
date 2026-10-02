@@ -12,7 +12,8 @@ Branch `thread/food`, worktree `sfhacks-food`, dev server on port 3602.
 | `src/components/post/issue-list.tsx` | Issues with no matching field, and the AI's questions | Main |
 | `src/components/post/event-form.tsx` | Flow 1: source (flyer or text), extract, editable form, check, publish | Main |
 | `src/components/post/food-form.tsx` | Flow 2: photo, estimate, editable result, publish | Main |
-| `src/app/post/page.tsx` | Tabs for the two flows, loads buildings once | Main |
+| `src/components/post/post-tabs.tsx` | Tabs for the two flows, loads buildings once | Main |
+| `src/app/post/page.tsx` | Page header, reads `?tab=food` | Main |
 | `src/components/food/countdown.tsx` | `useNow()` clock and the "safe until" countdown | Subagent |
 | `src/components/food/use-claims.ts` | Local record of this browser's claims (stub, see below) | Subagent |
 | `src/components/food/rescue-card.tsx` | One rescue: photo, items, place, portions left, dietary, claim button, held state | Subagent |

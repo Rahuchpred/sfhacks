@@ -1,4 +1,5 @@
 // Small helpers shared by the event form and the leftover food form.
+import { useEffect } from "react";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -36,6 +37,16 @@ export async function postJson<Req, Res>(url: string, body: Req): Promise<Res> {
     throw new Error(data?.error ?? `Request failed (${response.status}).`);
   }
   return data as Res;
+}
+
+// Asks the browser to confirm before leaving while a form has unsaved input.
+export function useLeaveWarning(dirty: boolean) {
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
 }
 
 export function errorMessage(error: unknown, fallback: string): string {
