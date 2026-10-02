@@ -147,8 +147,15 @@ export type Guest = {
 
 // Profiles
 
+// A signed-in account picks one role, once. Guests have none.
+export type Role = "student" | "faculty" | "recruiter";
+
 export type Profile = {
   id: string;
+  role: Role | null; // set once through setMyRole, read only afterwards
+  isDemo: boolean; // the owner's demo account, which may switch roles
+  department: string; // faculty and staff
+  company: string; // recruiters
   fullName: string;
   email: string | null; // from the signed-in account, read only
   sfsuVerified: boolean; // true when the account email is @sfsu.edu, read only
@@ -174,6 +181,8 @@ export type ProfileUpdate = Partial<
     | "resumeUrl"
     | "aiSummary"
     | "recruiterVisible"
+    | "department"
+    | "company"
   >
 >;
 

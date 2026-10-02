@@ -226,6 +226,20 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
+# Sign-in is by a six-digit code, so every sign-in email shows the code
+# instead of a link. Apply to the hosted project with: supabase config push
+[auth.email.template.magic_link]
+subject = "Your Gator Radar code"
+content_path = "./supabase/templates/code.html"
+
+[auth.email.template.confirmation]
+subject = "Your Gator Radar code"
+content_path = "./supabase/templates/code.html"
+
+[auth.email.template.email_change]
+subject = "Your Gator Radar code"
+content_path = "./supabase/templates/code.html"
+
 # Uncomment to customize email template
 # [auth.email.template.invite]
 # subject = "You have been invited"

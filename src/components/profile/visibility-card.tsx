@@ -35,6 +35,9 @@ export function VisibilityCard({ profile, onSaved }: Props) {
     }
   }
 
+  // Only students are shown to recruiters.
+  if (profile?.role === "faculty" || profile?.role === "recruiter") return null;
+
   return (
     <Card>
       <CardHeader>

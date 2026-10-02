@@ -5,12 +5,18 @@ import { recruiterSearchPrompt } from "@/lib/prompts";
 import { notSignedIn, userFromRequest } from "@/lib/supabase/server";
 import type { RecruiterSearchRequest, RecruiterSearchResponse } from "@/lib/types";
 
-// Ranks opted-in students against a recruiter's query. The model never sees
+// Ranks opted-in students against a recruiter's query, for recruiters only. The model never sees
 // names, emails or links, only major, year and scanned attendance.
 export async function POST(request: Request) {
   const context = await userFromRequest(request);
   if (!context) return notSignedIn();
-  const { supabase } = context;
+  const { supabase, user } = context;
+
+  // Recruiters only. The database also returns no students to anyone else.
+  const { data: me } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
+  if ((me as { role?: string | null } | null)?.role !== "recruiter") {
+    return Response.json({ error: "Only recruiters can search students." }, { status: 403 });
+  }
 
   const { query } = (await request.json()) as RecruiterSearchRequest;
   if (!query?.trim()) return Response.json({ error: "Type what you are looking for." }, { status: 400 });
