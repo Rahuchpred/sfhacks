@@ -74,3 +74,43 @@ export function Countdown({
     </time>
   );
 }
+
+// "14:05" for a pickup hold. Minutes and seconds, since a hold lasts 15 minutes.
+export function formatTimer(ms: number): string {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+const HOLD_URGENT_MS = 3 * 60 * 1000;
+
+// The time left on a pickup hold. Turns red for the last three minutes.
+export function HoldTimer({
+  until,
+  now,
+  className,
+}: {
+  until: string;
+  now: number;
+  className?: string;
+}) {
+  const target = Date.parse(until);
+  if (Number.isNaN(target)) return null;
+
+  const remaining = target - now;
+
+  return (
+    <time
+      dateTime={until}
+      title={absoluteFormat.format(target)}
+      className={cn(
+        "tabular-nums",
+        remaining < HOLD_URGENT_MS && "text-destructive",
+        className,
+      )}
+    >
+      {remaining <= 0 ? "Expired" : `${formatTimer(remaining)} left`}
+    </time>
+  );
+}

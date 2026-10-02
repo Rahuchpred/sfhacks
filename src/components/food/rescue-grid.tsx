@@ -1,16 +1,28 @@
 "use client";
 
-import { useMemo } from "react";
+// Mobbin reference: Sweatpals "You're in!" ticket confirmation (web) for the
+// pickups, above a plain photo card grid.
+
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, TriangleAlert, Utensils } from "lucide-react";
+import { Loader2, TriangleAlert, Utensils } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { claimPortion } from "@/lib/db";
+import type { FoodRescue } from "@/lib/types";
 import { useCampus } from "@/lib/use-campus";
 import { cn } from "@/lib/utils";
-import { formatClock, useNow } from "./countdown";
+import { useNow } from "./countdown";
+import { ClaimedDialog, Pickups, type ClaimOutcome, type PickupRow } from "./pickups";
 import { placeLabel, RescueCard } from "./rescue-card";
-import { useClaims } from "./use-claims";
+import {
+  pickupState,
+  useClaims,
+  useEventLookup,
+  useRescueLookup,
+  type Pickup,
+} from "./use-claims";
 
 const GRID = "grid gap-4 sm:grid-cols-2 lg:grid-cols-3";
 
@@ -31,31 +43,145 @@ function SkeletonCard() {
   );
 }
 
+const EMPTY: Pickup[] = [];
+const RECENT_PICKUP_MS = 12 * 60 * 60 * 1000;
+const ORDER = { holding: 0, expired: 1, picked_up: 2 } as const;
+const OFFLINE = "Could not claim. Check your connection and try again.";
+
+type Claimed = { items: string; place: string; code: string; expiresAt: string };
+
+function RetryButton({ onRetry }: { onRetry: () => Promise<void> }) {
+  const [pending, setPending] = useState(false);
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      disabled={pending}
+      onClick={async () => {
+        setPending(true);
+        await onRetry();
+        setPending(false);
+      }}
+    >
+      {pending && <Loader2 aria-hidden="true" className="animate-spin motion-reduce:animate-none" />}
+      Try again
+    </Button>
+  );
+}
+
 export function RescueGrid() {
-  const { buildings, rescues, loading, error } = useCampus();
+  const { buildings, events, rescues, loading: campusLoading, error } = useCampus();
   const now = useNow(1000);
-  const { held, isHeld, heldCount, hold } = useClaims();
+  // Changes with every claim, release and new post, which refreshes the claims.
+  const rescueKey = rescues
+    .map((rescue) => `${rescue.id}:${rescue.portionsLeft}:${rescue.status}`)
+    .join("|");
+  const claims = useClaims(rescueKey);
+  const [claimed, setClaimed] = useState<Claimed | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const buildingById = useMemo(
     () => new Map(buildings.map((building) => [building.id, building])),
     [buildings],
   );
+  const rescueById = useRescueLookup(
+    rescues,
+    claims.pickups.map((pickup) => pickup.rescueId),
+  );
+  const eventById = useEventLookup(
+    events,
+    rescues.map((rescue) => rescue.eventId),
+  );
+
+  // Open holds and confirmed pickups per rescue. Both count against the limit.
+  const holdsByRescue = new Map<string, Pickup[]>();
+  const takenByRescue = new Map<string, number>();
+  for (const pickup of claims.pickups) {
+    const state = pickupState(pickup, now);
+    if (state === "expired") continue;
+    takenByRescue.set(pickup.rescueId, (takenByRescue.get(pickup.rescueId) ?? 0) + 1);
+    if (state === "holding") {
+      holdsByRescue.set(pickup.rescueId, [...(holdsByRescue.get(pickup.rescueId) ?? []), pickup]);
+    }
+  }
 
   // Checked against the shared clock, so a rescue leaves the moment it runs
-  // out or its time passes. A rescue this browser holds stays until its time.
+  // out or its time passes. A rescue the student holds stays until its time.
   const visible = rescues.filter(
     (rescue) =>
       rescue.status === "open" &&
       Date.parse(rescue.safeUntil) > now &&
-      (rescue.portionsLeft > 0 || isHeld(rescue.id)),
+      (rescue.portionsLeft > 0 || holdsByRescue.has(rescue.id)),
   );
   const openCount = visible.filter((rescue) => rescue.portionsLeft > 0).length;
+  const claimable = new Map(visible.map((rescue) => [rescue.id, rescue]));
 
-  // Held claims whose rescue is no longer on screen as a card.
-  const visibleIds = new Set(visible.map((rescue) => rescue.id));
-  const pickups = loading
-    ? []
-    : held.filter((claim) => Date.parse(claim.safeUntil) > now && !visibleIds.has(claim.id));
+  const rows: PickupRow[] = claims.pickups
+    .filter(
+      (pickup) =>
+        !pickup.pickedUpAt || now - Date.parse(pickup.pickedUpAt) < RECENT_PICKUP_MS,
+    )
+    .map((pickup) => {
+      const live = claimable.get(pickup.rescueId);
+      const rescue = live ?? rescueById.get(pickup.rescueId);
+      return {
+        pickup,
+        rescue,
+        place: rescue ? placeLabel(buildingById.get(rescue.buildingId), rescue.room) : "Campus",
+        canClaimAgain:
+          live !== undefined &&
+          live.portionsLeft > 0 &&
+          (takenByRescue.get(live.id) ?? 0) < live.maxPerPerson,
+      };
+    })
+    .sort((a, b) => ORDER[pickupState(a.pickup, now)] - ORDER[pickupState(b.pickup, now)]);
+
+  async function claim(rescue: FoodRescue): Promise<ClaimOutcome> {
+    try {
+      const result = await claimPortion(rescue.id);
+      if (result.ok && result.claimCode && result.expiresAt) {
+        setClaimed({
+          items: rescue.items,
+          place: placeLabel(buildingById.get(rescue.buildingId), rescue.room),
+          code: result.claimCode,
+          expiresAt: result.expiresAt,
+        });
+        setDialogOpen(true);
+        // The new hold replaces any expired one for the same food.
+        claims.dismiss(
+          claims.pickups
+            .filter((p) => p.rescueId === rescue.id && pickupState(p, Date.now()) === "expired")
+            .map((p) => p.id),
+        );
+        await claims.refresh();
+        return { ok: true, message: null, closed: false };
+      }
+      switch (result.reason) {
+        case "already_claimed":
+          await claims.refresh();
+          return { ok: false, message: "You reached the limit for this food.", closed: false };
+        case "gone":
+          return { ok: false, message: "All portions were just claimed.", closed: false };
+        case "expired":
+          return { ok: false, message: "This food is past its safe-until time.", closed: true };
+        case "not_found":
+          return { ok: false, message: "This post was removed.", closed: true };
+        case "not_signed_in":
+          return {
+            ok: false,
+            message: "Still connecting you. Try again in a moment.",
+            closed: false,
+          };
+        default:
+          return { ok: false, message: OFFLINE, closed: false };
+      }
+    } catch {
+      return { ok: false, message: OFFLINE, closed: false };
+    }
+  }
+
+  const loading = campusLoading || claims.loading;
 
   if (loading) {
     return (
@@ -90,31 +216,26 @@ export function RescueGrid() {
 
   return (
     <div className="space-y-6">
-      {pickups.length > 0 && (
+      {(rows.length > 0 || claims.error) && (
         <section aria-labelledby="your-pickups" className="space-y-3">
           <h2 id="your-pickups" className="font-heading text-lg font-medium">
             Your pickups
           </h2>
-          <ul className="space-y-2">
-            {pickups.map((claim) => (
-              <li
-                key={claim.id}
-                className="flex items-start gap-2.5 rounded-lg border border-accent/40 bg-accent/15 p-3 text-sm"
-              >
-                <Check aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">
-                    {claim.count > 1 ? `${claim.count} x ` : ""}
-                    {claim.items}
-                  </p>
-                  <p className="text-pretty break-words text-muted-foreground">
-                    {placeLabel(buildingById.get(claim.buildingId), claim.room)}
-                  </p>
-                </div>
-                <p className="shrink-0 tabular-nums">before {formatClock(claim.safeUntil)}</p>
-              </li>
-            ))}
-          </ul>
+          {claims.error && (
+            <p
+              role="alert"
+              className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm"
+            >
+              <TriangleAlert aria-hidden="true" className="size-4 shrink-0 text-destructive" />
+              <span className="min-w-0 flex-1 text-pretty break-words">
+                Could not load your pickups.
+              </span>
+              <RetryButton onRetry={claims.refresh} />
+            </p>
+          )}
+          {rows.length > 0 && (
+            <Pickups rows={rows} now={now} onClaim={claim} onDismiss={claims.dismiss} />
+          )}
         </section>
       )}
 
@@ -146,8 +267,10 @@ export function RescueGrid() {
                   rescue={rescue}
                   building={buildingById.get(rescue.buildingId)}
                   now={now}
-                  heldCount={heldCount(rescue.id)}
-                  onClaimed={hold}
+                  event={rescue.eventId ? eventById.get(rescue.eventId) : undefined}
+                  holds={holdsByRescue.get(rescue.id) ?? EMPTY}
+                  takenCount={takenByRescue.get(rescue.id) ?? 0}
+                  onClaim={claim}
                 />
               </li>
             ))}
@@ -159,10 +282,10 @@ export function RescueGrid() {
             </div>
             <p className="text-base font-medium">No free food right now</p>
             <p className="text-sm text-pretty text-muted-foreground">
-              When a club posts leftovers they show up here right away.
+              Leftovers show up here the moment a club posts them.
             </p>
             <Link
-              href="/post?tab=food"
+              href="/host"
               className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-10 px-4")}
             >
               Post leftover food
@@ -170,6 +293,13 @@ export function RescueGrid() {
           </div>
         )}
       </section>
+
+      <ClaimedDialog
+        open={dialogOpen}
+        claimed={claimed}
+        now={now}
+        onClose={() => setDialogOpen(false)}
+      />
     </div>
   );
 }
