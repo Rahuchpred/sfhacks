@@ -7,7 +7,7 @@ Source docs: [gator-radar.md](gator-radar.md), [hackathon-rules.md](../reference
 ## Done when
 
 - [ ] `npm run dev` serves the app on **port 3600** (3000 is reserved)
-- [ ] Shell renders: top bar, three tabs (Map, Food, Post), SFSU purple and gold, Geist font
+- [ ] Shell renders: desktop top nav (Map, Free food, Post), SFSU purple and gold, Geist font
 - [ ] A MapLibre map centered on SFSU shows on the Map tab
 - [ ] `src/lib/types.ts` and `src/lib/contracts.md` exist and are the single source of truth
 - [ ] All three AI routes answer with mock JSON when `AI_MOCK=1`
@@ -95,7 +95,7 @@ Rules: purple is for events, gold is for food, so the map reads at a glance. Gol
 
 4. **Geist**: load `Geist` and `Geist_Mono` from `next/font/google` in `layout.tsx`, wire to `--font-sans` and `--font-mono`.
 
-5. **App shell**: top bar with the name, bottom tab bar (Map, Food, Post), mobile-first at 390px wide. Each tab is a route with a placeholder.
+5. **App shell**: a desktop website, not a phone app. Top bar with the name and nav links (Map, Free food, Post), full-width pages, map with a side list. Stacks on small screens.
 
 6. **Shared types and contracts** (the most important step, see below).
 
