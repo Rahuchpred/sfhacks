@@ -43,32 +43,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loaded, setLoaded] = useState<{ key: string; profile: Profile | null } | null>(null);
 
   useEffect(() => {
-    // A failed anonymous sign-in still counts as known: the visitor is a guest.
     // On a demo site (DEMO_OPEN=1) a visitor is signed in at once as a fresh demo account,
-    // so nothing has to be typed. Anywhere else the visitor is an anonymous guest.
-    const becomeGuest = async () => {
+    // so nothing has to be typed. Anywhere else the visitor is an anonymous guest, and a
+    // failed anonymous sign-in still counts as known. True when a demo account is in.
+    const openDemo = async (): Promise<boolean> => {
       try {
         const info = (await fetch("/api/demo/sign-in").then((response) => response.json())) as {
           open?: boolean;
         };
-        if (info.open) {
-          const response = await fetch("/api/demo/sign-in", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ open: true }),
-          });
-          const tokens = (await response.json()) as { accessToken?: string; refreshToken?: string };
-          if (response.ok && tokens.accessToken && tokens.refreshToken) {
-            const { error } = await supabase.auth.setSession({
-              access_token: tokens.accessToken,
-              refresh_token: tokens.refreshToken,
-            });
-            if (!error) return setSessionKnown(true);
-          }
-        }
+        if (!info.open) return false;
+        const response = await fetch("/api/demo/sign-in", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ open: true }),
+        });
+        const tokens = (await response.json()) as { accessToken?: string; refreshToken?: string };
+        if (!response.ok || !tokens.accessToken || !tokens.refreshToken) return false;
+        const { error } = await supabase.auth.setSession({
+          access_token: tokens.accessToken,
+          refresh_token: tokens.refreshToken,
+        });
+        return !error;
       } catch {
-        // Fall through to a plain guest.
+        return false;
       }
+    };
+
+    const becomeGuest = async () => {
+      if (await openDemo()) return setSessionKnown(true);
       await supabase.auth.signInAnonymously().catch(() => {});
       setSessionKnown(true);
     };
@@ -80,8 +82,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (event === "SIGNED_OUT") setTimeout(becomeGuest, 0);
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) becomeGuest();
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) return becomeGuest();
+      // A guest from before the demo opened up is moved into a demo account too.
+      if (session.user.is_anonymous && !session.user.email) await openDemo();
     });
 
     return () => data.subscription.unsubscribe();
