@@ -19,6 +19,8 @@ export type ImageDropProps = {
   onUploadingChange?: (uploading: boolean) => void;
   tone?: "event" | "food";
   disabled?: boolean;
+  // A square cover that fills its column, instead of a letterboxed preview.
+  square?: boolean;
 };
 
 export function ImageDrop({
@@ -29,6 +31,7 @@ export function ImageDrop({
   onUploadingChange,
   tone = "event",
   disabled,
+  square,
 }: ImageDropProps) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -104,14 +107,22 @@ export function ImageDrop({
       />
 
       {shown ? (
-        <div className="relative overflow-hidden rounded-xl border bg-muted">
+        <div
+          className={cn(
+            "relative overflow-hidden rounded-xl border bg-muted",
+            square && "aspect-square",
+          )}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={shown}
             alt={`${label} preview`}
             width={640}
             height={360}
-            className={cn("max-h-72 w-full object-contain", uploading && "opacity-50")}
+            className={cn(
+              square ? "size-full object-cover" : "max-h-72 w-full object-contain",
+              uploading && "opacity-50",
+            )}
           />
           {uploading && (
             <div className="absolute inset-0 flex items-center justify-center gap-2 text-sm font-medium">
@@ -146,6 +157,7 @@ export function ImageDrop({
           }}
           className={cn(
             "flex min-h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-input px-4 py-6 text-center transition-colors",
+            square && "aspect-square max-h-80 w-full md:max-h-none",
             "peer-focus-visible:border-ring peer-focus-visible:ring-3 peer-focus-visible:ring-ring/50",
             tone === "food" ? "hover:border-accent hover:bg-accent/10" : "hover:border-primary/60 hover:bg-primary/5",
             dragging && (tone === "food" ? "border-accent bg-accent/15" : "border-primary bg-primary/10"),
