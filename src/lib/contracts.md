@@ -27,7 +27,7 @@ Round 2 additions:
 
 - Events: `getEvent(id)`, `listMyHostedEvents()`, `updateEvent(id, changes)`, `deleteEvent(id)`. `CampusEvent.rsvpCount` and `checkedInCount` are live counters
 - Tickets: `rsvpEvent(eventId)` (safe to call twice, returns the same ticket), `cancelRsvp(eventId)`, `getMyTicket(eventId)`, `listMyTickets()`. `Ticket.code` is 8 characters and is what the QR code encodes
-- Door: `checkIn(code)` returns `{ ok, reason, guestName, eventId, checkedInAt }`, reasons `not_found`, `not_host`, `already_checked_in`. `listGuests(eventId)`. Both work only for the user who created the event
+- Door: `checkIn(code)` returns `{ ok, reason, guestName, eventId, checkedInAt }`, reasons `not_found`, `not_host`, `already_checked_in`. `listGuests(eventId)`. Both work for the event creator and for any organizer of its club
 - Profiles: `getMyProfile()` (null until first save), `saveMyProfile(changes)`, `listRecruiterVisibleProfiles()`. `email` and `sfsuVerified` are set by the database from the signed-in account and cannot be written by the client. `recruiterVisible` is the student's opt-in, off by default, enforced by row level security
 - Libraries: `qrcode.react` to draw a QR code, `@yudiel/react-qr-scanner` to scan one
 - `useCampus()` in `src/lib/use-campus.ts`: live buildings, events and rescues for any client component
