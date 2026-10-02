@@ -86,8 +86,15 @@ export function EventPin({
   fresh,
   onHover,
   className,
+  when,
   ...button
-}: PinProps & { icons: LucideIcon[]; count: number; hasFood: boolean }) {
+}: PinProps & {
+  icons: LucideIcon[];
+  count: number;
+  hasFood: boolean;
+  // When the next event here starts, shown under the pin: "Now", "5 PM", "Tue".
+  when?: { text: string; live: boolean } | null;
+}) {
   return (
     <PinShell tone="event" hint={hint} fresh={fresh} onHover={onHover}>
       <button
@@ -115,6 +122,20 @@ export function EventPin({
           />
         )}
       </button>
+      {when && (
+        <span
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute top-full left-1/2 mt-1 -translate-x-1/2 rounded-full border px-1.5 text-[0.6875rem] leading-4 font-semibold whitespace-nowrap shadow-sm",
+            when.live
+              ? "border-emerald-600 bg-emerald-600 text-white"
+              : "border-border bg-background text-foreground",
+            dimmed && "opacity-45",
+          )}
+        >
+          {when.text}
+        </span>
+      )}
     </PinShell>
   );
 }

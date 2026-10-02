@@ -82,6 +82,14 @@ const dayFormat = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
 });
 
+// "5 PM", or "5:30 PM" when the start is not on the hour.
+const hourFormat = {
+  format(date: Date): string {
+    const text = timeFormat.format(date);
+    return text.replace(":00", "");
+  },
+};
+
 export function formatTime(iso: string): string {
   return timeFormat.format(new Date(iso));
 }
@@ -121,4 +129,19 @@ export function placeLabel(building: Building | undefined, room: string | null):
 
 export function countLabel(count: number, singular: string): string {
   return `${count} ${singular}${count === 1 ? "" : "s"}`;
+}
+
+// The short label under a pin: "Now", "5 PM", "Tomorrow" or a weekday. Looks at the
+// event of a building that starts soonest, and a live one counts as now.
+export function pinWhen(
+  events: Pick<CampusEvent, "startsAt" | "endsAt">[],
+  now: number,
+): { text: string; live: boolean } | null {
+  if (events.length === 0) return null;
+  if (events.some((event) => isHappeningNow(event, now))) return { text: "Now", live: true };
+  const next = [...events].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt))[0];
+  const day = dayLabel(next.startsAt, now);
+  const clock = hourFormat.format(new Date(next.startsAt));
+  const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(new Date(next.startsAt));
+  return { text: day === "Today" ? clock : day === "Tomorrow" ? "Tmrw" : weekday, live: false };
 }

@@ -4,7 +4,7 @@
 // a row of thumbnails.
 
 import { useEffect, useSyncExternalStore } from "react";
-import { Box, Check, Layers } from "lucide-react";
+import { Box, Check, Flame, Layers, type LucideIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useMap } from "@/components/ui/map";
 import { cn } from "@/lib/utils";
@@ -43,9 +43,9 @@ export const MAP_LOOKS = [
 ] as const;
 
 export type MapLookId = (typeof MAP_LOOKS)[number]["id"];
-export type MapLook = { id: MapLookId; tilt: boolean };
+export type MapLook = { id: MapLookId; tilt: boolean; busy: boolean };
 
-export const DEFAULT_LOOK: MapLook = { id: "light", tilt: false };
+export const DEFAULT_LOOK: MapLook = { id: "light", tilt: false, busy: true };
 
 export function lookById(id: MapLookId) {
   return MAP_LOOKS.find((look) => look.id === id) ?? MAP_LOOKS[0];
@@ -68,7 +68,7 @@ function read(): MapLook {
   try {
     const saved = raw ? (JSON.parse(raw) as Partial<MapLook>) : null;
     if (saved && MAP_LOOKS.some((item) => item.id === saved.id)) {
-      look = { id: saved.id as MapLookId, tilt: saved.tilt === true };
+      look = { id: saved.id as MapLookId, tilt: saved.tilt === true, busy: saved.busy !== false };
     }
   } catch {
     // A broken value falls back to the default.
@@ -253,33 +253,60 @@ export function MapLookPicker({
             );
           })}
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={look.tilt}
-          onClick={() => onChange({ ...look, tilt: !look.tilt })}
-          className="flex h-9 items-center justify-between gap-2 rounded-md border px-2.5 text-sm font-medium transition-colors duration-150 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
-        >
-          <span className="flex items-center gap-2">
-            <Box aria-hidden className="size-4" />
-            3D buildings
-          </span>
-          <span
-            aria-hidden
-            className={cn(
-              "flex h-5 w-9 items-center rounded-full p-0.5 transition-colors duration-150 motion-reduce:transition-none",
-              look.tilt ? "bg-primary" : "bg-input",
-            )}
-          >
-            <span
-              className={cn(
-                "size-4 rounded-full bg-white shadow-sm transition-transform duration-150 ease-out motion-reduce:transition-none",
-                look.tilt && "translate-x-4",
-              )}
-            />
-          </span>
-        </button>
+        <LookSwitch
+          icon={Box}
+          label="3D buildings"
+          on={look.tilt}
+          onToggle={() => onChange({ ...look, tilt: !look.tilt })}
+        />
+        <LookSwitch
+          icon={Flame}
+          label="Busy right now"
+          on={look.busy}
+          onToggle={() => onChange({ ...look, busy: !look.busy })}
+        />
       </PopoverContent>
     </Popover>
+  );
+}
+
+function LookSwitch({
+  icon: Icon,
+  label,
+  on,
+  onToggle,
+}: {
+  icon: LucideIcon;
+  label: string;
+  on: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={onToggle}
+      className="flex h-9 items-center justify-between gap-2 rounded-md border px-2.5 text-sm font-medium transition-colors duration-150 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
+    >
+      <span className="flex items-center gap-2">
+        <Icon aria-hidden className="size-4" />
+        {label}
+      </span>
+      <span
+        aria-hidden
+        className={cn(
+          "flex h-5 w-9 items-center rounded-full p-0.5 transition-colors duration-150 motion-reduce:transition-none",
+          on ? "bg-primary" : "bg-input",
+        )}
+      >
+        <span
+          className={cn(
+            "size-4 rounded-full bg-white shadow-sm transition-transform duration-150 ease-out motion-reduce:transition-none",
+            on && "translate-x-4",
+          )}
+        />
+      </span>
+    </button>
   );
 }

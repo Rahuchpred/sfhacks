@@ -7,7 +7,7 @@ import type { Building, CampusEvent, FoodRescue } from "@/lib/types";
 const NO_FRESH: ReadonlySet<string> = new Set();
 const noop = () => {};
 // The preview matches the dark page and shows off the 3D buildings.
-const LOOK = { id: "dark", tilt: true } as const;
+const LOOK = { id: "dark", tilt: true, busy: false } as const;
 
 type EmbeddedMapProps = {
   buildings: Building[];

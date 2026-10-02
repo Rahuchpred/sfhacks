@@ -17,12 +17,15 @@ import {
   useMapLook,
   type MapLook,
 } from "./map-look";
+import { BusyHeat, LiveGlow, useBusyNow, type GlowSpot } from "./campus-glow";
 import { mainCategory } from "./categories";
 import {
   countLabel,
   formatTime,
   formatTimeRange,
   groupByBuilding,
+  isHappeningNow,
+  pinWhen,
   type Hover,
   type Selection,
 } from "./map-utils";
@@ -86,6 +89,21 @@ export function CampusMap({
 
   const target = buildings.find((building) => building.id === selectedBuildingId);
 
+  // Glow under buildings with an event on now (purple) or open food (gold), and the busy heat.
+  const spots = useMemo<GlowSpot[]>(
+    () => [
+      ...groups
+        .filter((group) => group.events.some((event) => isHappeningNow(event, now)))
+        .map((group) => ({ buildingId: group.building.id, kind: "event" as const })),
+      ...groups
+        .filter((group) => group.rescues.length > 0)
+        .map((group) => ({ buildingId: group.building.id, kind: "food" as const })),
+    ],
+    [groups, now],
+  );
+  // A fixed preview map (the landing page) skips the heat.
+  const busy = useBusyNow(look.busy && !fixedLook);
+
   function pick(next: Selection) {
     setOpenPin(null);
     onHover(null);
@@ -105,6 +123,8 @@ export function CampusMap({
         <MapLookPicker look={look} onChange={setLook} className="absolute top-2 right-12 z-10" />
       )}
       <Buildings3D enabled={look.tilt} color={lookStyle.building} />
+      <BusyHeat busy={busy} buildings={buildings} />
+      <LiveGlow spots={spots} buildings={buildings} tilt={look.tilt} />
       <QuietPlaces />
       <ClearOnMapClick onClear={() => onSelect(null)} />
       <FlyToBuilding lng={target?.lng} lat={target?.lat} />
@@ -171,6 +191,7 @@ export function CampusMap({
             icons={icons}
             count={group.events.length}
             hasFood={group.events.some((event) => event.hasFood)}
+            when={pinWhen(group.events, now)}
             label={
               group.events.length === 1
                 ? `${group.events[0].title}, ${building.name}`
