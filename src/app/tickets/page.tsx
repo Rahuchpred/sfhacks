@@ -130,9 +130,6 @@ export default function TicketsPage() {
         <div className="mt-16 flex flex-col items-center gap-3 text-center">
           <Ticket aria-hidden className="size-8 text-muted-foreground" />
           <p className="font-medium">No tickets yet</p>
-          <p className="text-sm text-muted-foreground">
-            Register for an event and its ticket shows up here.
-          </p>
           <Link href="/map" className={buttonVariants()}>
             Find an event
           </Link>
@@ -166,7 +163,7 @@ export default function TicketsPage() {
               <h2 id="past-heading" className="text-sm font-semibold text-muted-foreground">
                 Past
               </h2>
-              <ul className="mt-3 space-y-4">
+              <ul className="mt-3 space-y-2">
                 {past.map((ticket) => (
                   <li key={ticket.id}>
                     <TicketCard

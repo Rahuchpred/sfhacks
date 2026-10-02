@@ -64,11 +64,7 @@ export function VisibilityCard({ profile, onSaved }: Props) {
           {!hasName && (
             <p className="font-medium text-foreground">Save your name first to turn this on.</p>
           )}
-          <p>
-            When on, recruiters see your name, major, graduation year, bio, links, AI summary and
-            the events you attended.
-          </p>
-          <p>You can turn it off at any time. Nothing is shared while it is off.</p>
+          <p>Shares your details, summary and attended events.</p>
         </div>
       </CardContent>
     </Card>

@@ -2,8 +2,6 @@ import { useEffect } from "react";
 import type { TicketWithEvent } from "@/lib/types";
 
 export const BIO_LIMIT = 280;
-export const GRAD_YEAR_MIN = 2000;
-export const GRAD_YEAR_MAX = 2040;
 
 // Tickets a club scanned at the door, newest event first.
 export function attendedTickets(tickets: TicketWithEvent[]): TicketWithEvent[] {
