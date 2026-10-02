@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Field, fieldControlProps } from "@/components/post/field";
+import { GradYearSelect } from "@/components/profile/grad-year-select";
 import { MajorPicker } from "@/components/profile/major-picker";
 import {
   BIO_LIMIT,
@@ -14,13 +15,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { saveMyProfile } from "@/lib/db";
 import { cn } from "@/lib/utils";
@@ -30,24 +24,32 @@ type Values = {
   fullName: string;
   major: string;
   gradYear: string;
+  department: string;
+  company: string;
   bio: string;
   linkedinUrl: string;
   githubUrl: string;
 };
 type FieldName = keyof Values;
 
-const FIELD_ORDER: FieldName[] = ["fullName", "major", "gradYear", "bio", "linkedinUrl", "githubUrl"];
-
-const NO_YEAR = "none";
-// This year through six years out.
-const THIS_YEAR = new Date().getFullYear();
-const GRAD_YEARS = Array.from({ length: 7 }, (_, index) => String(THIS_YEAR + index));
+const FIELD_ORDER: FieldName[] = [
+  "fullName",
+  "major",
+  "gradYear",
+  "department",
+  "company",
+  "bio",
+  "linkedinUrl",
+  "githubUrl",
+];
 
 function toValues(profile: Profile | null): Values {
   return {
     fullName: profile?.fullName ?? "",
     major: profile?.major ?? "",
     gradYear: profile?.gradYear ? String(profile.gradYear) : "",
+    department: profile?.department ?? "",
+    company: profile?.company ?? "",
     bio: profile?.bio ?? "",
     linkedinUrl: profile?.linkedinUrl ?? "",
     githubUrl: profile?.githubUrl ?? "",
@@ -114,6 +116,8 @@ export function DetailsForm({ profile, onSaved }: Props) {
         fullName: values.fullName.trim(),
         major: values.major.trim(),
         gradYear: values.gradYear.trim() ? Number(values.gradYear.trim()) : null,
+        department: values.department.trim(),
+        company: values.company.trim(),
         bio: values.bio.trim(),
         linkedinUrl: values.linkedinUrl.trim() || null,
         githubUrl: values.githubUrl.trim() || null,
@@ -133,17 +137,16 @@ export function DetailsForm({ profile, onSaved }: Props) {
   }
 
   const bioLeft = BIO_LIMIT - values.bio.length;
-  // A year saved earlier that is now outside the range stays selectable, so saving does not drop it.
-  const yearOptions =
-    saved.gradYear && !GRAD_YEARS.includes(saved.gradYear)
-      ? [saved.gradYear, ...GRAD_YEARS]
-      : GRAD_YEARS;
+  // Major and year are for students. Faculty have a department, recruiters a company.
+  const role = profile?.role ?? null;
 
   return (
     <Card>
       <CardHeader>
         <h2 className="font-heading text-base leading-snug font-medium text-balance">Your details</h2>
-        <CardDescription>Private unless you turn on recruiter visibility.</CardDescription>
+        {role !== "faculty" && role !== "recruiter" && (
+          <CardDescription>Private unless you turn on recruiter visibility.</CardDescription>
+        )}
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
@@ -159,39 +162,50 @@ export function DetailsForm({ profile, onSaved }: Props) {
             />
           </Field>
 
-          <Field id="profile-major" label="Major" optional>
-            <MajorPicker
-              id="profile-major"
-              value={values.major}
-              onChange={(major) => setValues((current) => ({ ...current, major }))}
-            />
-          </Field>
+          {role === "faculty" && (
+            <Field id="profile-department" label="Department" optional>
+              <Input
+                {...controlProps("department")}
+                name="department"
+                type="text"
+                autoComplete="off"
+                maxLength={120}
+              />
+            </Field>
+          )}
 
-          <Field id="profile-gradYear" label="Graduation year" optional>
-            <Select
-              value={values.gradYear || NO_YEAR}
-              onValueChange={(value) =>
-                setValues((current) => ({
-                  ...current,
-                  gradYear: !value || value === NO_YEAR ? "" : value,
-                }))
-              }
-            >
-              <SelectTrigger id="profile-gradYear" className="w-full tabular-nums">
-                <SelectValue>
-                  {values.gradYear || <span className="text-muted-foreground">Not set</span>}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_YEAR}>Not set</SelectItem>
-                {yearOptions.map((year) => (
-                  <SelectItem key={year} value={year} className="tabular-nums">
-                    {year}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
+          {role === "recruiter" && (
+            <Field id="profile-company" label="Company" optional>
+              <Input
+                {...controlProps("company")}
+                name="organization"
+                type="text"
+                autoComplete="organization"
+                maxLength={120}
+              />
+            </Field>
+          )}
+
+          {role !== "faculty" && role !== "recruiter" && (
+            <>
+              <Field id="profile-major" label="Major" optional>
+                <MajorPicker
+                  id="profile-major"
+                  value={values.major}
+                  onChange={(major) => setValues((current) => ({ ...current, major }))}
+                />
+              </Field>
+
+              <Field id="profile-gradYear" label="Graduation year" optional>
+                <GradYearSelect
+                  id="profile-gradYear"
+                  value={values.gradYear}
+                  keep={saved.gradYear}
+                  onChange={(gradYear) => setValues((current) => ({ ...current, gradYear }))}
+                />
+              </Field>
+            </>
+          )}
 
           <Field id="profile-bio" label="Short bio" optional issues={issuesFor("bio")}>
             <Textarea

@@ -27,6 +27,7 @@ import type {
   NewFoodRescue,
   Profile,
   ProfileUpdate,
+  Role,
   Ticket,
   TicketWithEvent,
 } from "@/lib/types";
@@ -34,7 +35,13 @@ import type {
 type EventRow = Database["public"]["Tables"]["events"]["Row"];
 type RescueRow = Database["public"]["Tables"]["food_rescues"]["Row"];
 type RsvpRow = Database["public"]["Tables"]["rsvps"]["Row"];
-type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
+// The role columns are newer than the generated types.
+type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"] & {
+  role?: string | null;
+  is_demo?: boolean;
+  department?: string;
+  company?: string;
+};
 
 export function toEvent(row: EventRow): CampusEvent {
   return {
@@ -485,6 +492,10 @@ export async function listGuests(eventId: string): Promise<Guest[]> {
 function toProfile(row: ProfileRow): Profile {
   return {
     id: row.id,
+    role: (row.role ?? null) as Role | null,
+    isDemo: row.is_demo ?? false,
+    department: row.department ?? "",
+    company: row.company ?? "",
     fullName: row.full_name,
     email: row.email,
     sfsuVerified: row.sfsu_verified,
@@ -528,11 +539,38 @@ export async function saveMyProfile(changes: ProfileUpdate): Promise<Profile> {
       resume_url: changes.resumeUrl,
       ai_summary: changes.aiSummary,
       recruiter_visible: changes.recruiterVisible,
-    })
+      department: changes.department,
+      company: changes.company,
+    } as Database["public"]["Tables"]["profiles"]["Insert"])
     .select()
     .single();
   if (error) throw error;
   return toProfile(data);
+}
+
+type RoleFunction = "set_my_role" | "demo_set_role";
+type RoleRpc = (
+  fn: RoleFunction,
+  args: { p_role: Role },
+) => PromiseLike<{ data: ProfileRow | null; error: { message: string } | null }>;
+
+async function callRoleFunction(fn: RoleFunction, role: Role): Promise<Profile> {
+  const rpc = supabase.rpc.bind(supabase) as unknown as RoleRpc;
+  const { data, error } = await rpc(fn, { p_role: role });
+  if (error || !data) throw new Error(error?.message ?? "Could not set the role.");
+  return toProfile(data);
+}
+
+// Picks the role, once. The database keeps the first choice, so the returned
+// profile carries the real role. Students and faculty need an SFSU email,
+// otherwise this throws "sfsu_email_required".
+export function setMyRole(role: Role): Promise<Profile> {
+  return callRoleFunction("set_my_role", role);
+}
+
+// Demo accounts only: really changes the role. Throws "not_demo" for anyone else.
+export function demoSetRole(role: Role): Promise<Profile> {
+  return callRoleFunction("demo_set_role", role);
 }
 
 // Only students who opted in. Row level security enforces this in the database.
