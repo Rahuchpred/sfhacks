@@ -101,7 +101,7 @@ export function EventTile({ event, now, size = "row", className }: EventTileProp
       {live && (
         <span className="absolute inset-x-1.5 bottom-1.5 h-1 overflow-hidden rounded-full bg-background/80">
           <span
-            className="block h-full origin-left rounded-full bg-rose-600 transition-transform duration-500 ease-linear motion-reduce:transition-none"
+            className="block h-full origin-left rounded-full bg-emerald-600 transition-transform duration-500 ease-linear motion-reduce:transition-none"
             style={{ transform: `scaleX(${liveProgress(event, now)})` }}
           />
         </span>
@@ -142,12 +142,12 @@ export function RescueTile({
   );
 }
 
-// Red is the usual colour of "live". The ring pulses, the dot itself never moves.
+// Green for "live": red is kept for safety alerts only. The ring pulses, the dot itself never moves.
 export function LiveDot({ className }: { className?: string }) {
   return (
     <span aria-hidden className={cn("relative flex size-2 shrink-0", className)}>
-      <span className="absolute inset-0 rounded-full bg-rose-500 opacity-75 motion-safe:animate-ping" />
-      <span className="relative size-2 rounded-full bg-rose-600" />
+      <span className="absolute inset-0 rounded-full bg-emerald-500 opacity-75 motion-safe:animate-ping" />
+      <span className="relative size-2 rounded-full bg-emerald-600" />
     </span>
   );
 }
@@ -171,7 +171,7 @@ export function WhenLine({
     return (
       <span className={line}>
         <LiveDot />
-        <span className="font-semibold text-rose-700">Live</span>
+        <span className="font-semibold text-emerald-700">Live</span>
         <span className="text-muted-foreground">{durationLabel(end - now)} left</span>
       </span>
     );
