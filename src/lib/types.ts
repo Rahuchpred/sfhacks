@@ -163,3 +163,35 @@ export type EstimateFoodResponse = {
   safeUntil: string;
   note: string;
 };
+
+export type ProfileSummaryResponse = { summary: string | null; reason: "no_checkins" | null };
+
+export type EventRecapRequest = { eventId: string };
+export type EventRecapStats = {
+  going: number;
+  checkedIn: number;
+  turnoutPercent: number | null;
+  verifiedGuests: number;
+  foodPosts: number;
+  portionsPosted: number;
+  portionsClaimed: number;
+};
+export type EventRecapResponse = { recap: string; stats: EventRecapStats };
+
+// One event an opted-in student checked in to.
+export type AttendedEvent = {
+  profileId: string;
+  eventId: string;
+  title: string;
+  clubName: string;
+  tags: string[];
+  startsAt: string;
+};
+
+export type RecruiterSearchRequest = { query: string };
+export type RecruiterMatch = {
+  profileId: string;
+  reason: string;
+  evidenceEventIds: string[];
+};
+export type RecruiterSearchResponse = { matches: RecruiterMatch[] };

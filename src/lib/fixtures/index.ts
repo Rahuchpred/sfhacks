@@ -28,3 +28,14 @@ export const estimateFoodFixture = {
   dietary: ["vegetarian", "contains dairy", "contains gluten"],
   category: "perishable" as const,
 };
+
+export const profileSummaryFixture = {
+  summary:
+    "Shows up most for career and academic events, including a machine learning workshop and a hackathon.",
+};
+
+export const eventRecapFixture = {
+  recap: "12 of 20 registered students checked in, a 60% turnout.",
+};
+
+export const recruiterSearchFixture = { matches: [] };

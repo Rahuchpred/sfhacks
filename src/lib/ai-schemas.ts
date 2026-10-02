@@ -36,3 +36,19 @@ export const estimateFoodSchema = z.object({
   dietary: z.array(z.string()).catch([]),
   category: z.enum(["perishable", "shelf_stable"]).catch("perishable"),
 });
+
+export const profileSummarySchema = z.object({ summary: z.string().min(1) });
+
+export const eventRecapSchema = z.object({ recap: z.string().min(1) });
+
+export const recruiterSearchSchema = z.object({
+  matches: z
+    .array(
+      z.object({
+        profileId: z.string(),
+        reason: z.string(),
+        evidenceEventIds: z.array(z.string()).catch([]),
+      }),
+    )
+    .catch([]),
+});

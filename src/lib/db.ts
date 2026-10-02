@@ -2,6 +2,7 @@
 import { supabase, UPLOADS_BUCKET } from "@/lib/supabase/client";
 import type { Database } from "@/lib/database.types";
 import type {
+  AttendedEvent,
   Building,
   CampusEvent,
   CheckInResult,
@@ -342,6 +343,20 @@ export async function listRecruiterVisibleProfiles(): Promise<Profile[]> {
     .order("full_name");
   if (error) throw error;
   return data.map(toProfile);
+}
+
+// Events that opted-in students checked in to. Never includes anyone else.
+export async function listVisibleAttendance(): Promise<AttendedEvent[]> {
+  const { data, error } = await supabase.rpc("visible_attendance");
+  if (error) throw error;
+  return data.map((row) => ({
+    profileId: row.profile_id,
+    eventId: row.event_id,
+    title: row.title,
+    clubName: row.club_name,
+    tags: row.tags,
+    startsAt: row.starts_at,
+  }));
 }
 
 // Calls onChange whenever events or rescues change, so lists and the map stay live.

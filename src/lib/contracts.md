@@ -49,6 +49,16 @@ How the AI and code split the work:
 - **Extract event:** building ids and tags from the model are dropped unless they exist in the building list and in `EVENT_TAGS`. `missing` is computed in code.
 - **Estimate food:** `safeUntil` is computed in code: 2 hours after posting for perishable food, 8 hours for sealed packaged food.
 
+Round 2 routes need the signed-in user. Call them with `postJson(path, body)` from `src/lib/api.ts`, which attaches the session token. They return 401 without it.
+
+| Route | Request | Response |
+|---|---|---|
+| `/api/ai/profile-summary` | `{}` | `{ summary, reason }`. `summary` is null with `reason: "no_checkins"` when the student has no check-ins yet |
+| `/api/ai/event-recap` | `{ eventId }` | `{ recap, stats }`. Host only (403 otherwise). `stats` are counted in code |
+| `/api/ai/recruiter-search` | `{ query }` | `{ matches: [{ profileId, reason, evidenceEventIds }] }`. Only opted-in students |
+
+These calls take 10 to 25 seconds. Always show a loading state.
+
 `imageUrl` must be a URL returned by `uploadImage()`. With `AI_MOCK=1` or no `GEMINI_API_KEY`, routes return the fixtures in `src/lib/fixtures`.
 
 ## Design rules

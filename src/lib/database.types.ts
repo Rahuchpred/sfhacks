@@ -357,6 +357,17 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      visible_attendance: {
+        Args: never
+        Returns: {
+          club_name: string
+          event_id: string
+          profile_id: string
+          starts_at: string
+          tags: string[]
+          title: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

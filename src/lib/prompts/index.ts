@@ -105,3 +105,90 @@ Reply with only this JSON object, no other text:
   "category": "perishable" | "shelf_stable"
 }`;
 }
+
+type AttendedLine = { title: string; clubName: string; tags: string[]; startsAt: string };
+
+function attendedList(events: AttendedLine[]): string {
+  return events
+    .map(
+      (event) =>
+        `- ${event.title} (${event.clubName || "no club listed"}; ${event.tags.join(", ") || "no tags"}; ${event.startsAt.slice(0, 10)})`,
+    )
+    .join("\n");
+}
+
+export function profileSummaryPrompt(
+  profile: { major: string; gradYear: number | null },
+  events: AttendedLine[],
+): string {
+  return `You write a short profile summary for a San Francisco State University student. It is shown to recruiters only if the student opts in.
+
+The only evidence you have is the list of campus events the student was scanned in to at the door.
+
+Student: ${profile.major || "major not given"}${profile.gradYear ? `, class of ${profile.gradYear}` : ""}
+
+Events they checked in to:
+${attendedList(events)}
+
+Rules:
+- 2 or 3 sentences, plain language, third person without a name ("Shows up for...", "Has attended...").
+- Describe what they show up for and how consistently. Mention specific event types or clubs from the list.
+- Never claim a skill, ability, achievement or personality trait. Attendance shows interest, not skill.
+- Never mention anything that is not in the list. Do not guess a name, gender or background.
+- No hype words.
+
+Reply with only this JSON object, no other text:
+{ "summary": string }`;
+}
+
+export function eventRecapPrompt(
+  event: { title: string; clubName: string; startsAt: string; tags: string[] },
+  stats: Record<string, number | null>,
+): string {
+  return `You write a short recap of a campus event for the club that hosted it at San Francisco State University.
+
+Event: ${event.title} by ${event.clubName || "the host"} on ${event.startsAt.slice(0, 10)} (${event.tags.join(", ") || "no tags"})
+
+Numbers, counted exactly by the system:
+${JSON.stringify(stats, null, 2)}
+
+Rules:
+- 2 to 4 sentences, plain and useful, written to the club.
+- Use only the numbers above, exactly as given. Never estimate or invent a number.
+- Write the way a person would, for example "12 of 20 registered students checked in, a 60% turnout". Do not repeat field names.
+- Skip anything that is zero unless it is the main point.
+- If turnoutPercent is null, nobody registered: say so plainly.
+- End with one practical suggestion that follows from the numbers.
+- No hype words.
+
+Reply with only this JSON object, no other text:
+{ "recap": string }`;
+}
+
+export function recruiterSearchPrompt(
+  query: string,
+  students: {
+    profileId: string;
+    major: string;
+    gradYear: number | null;
+    events: (AttendedLine & { eventId: string })[];
+  }[],
+): string {
+  return `A recruiter is looking for San Francisco State University students. Every student below chose to be visible to recruiters. The evidence for each is the list of campus events they were scanned in to.
+
+Recruiter is looking for: "${query}"
+
+Students:
+${JSON.stringify(students, null, 2)}
+
+Rules:
+- Return the students that fit, best fit first, at most 8. Leave out students with no supporting evidence.
+- "reason": one sentence saying which attended events support the match. Attendance shows interest, not skill, so never claim an ability.
+- "evidenceEventIds": the eventId values from that student's list that support the match.
+- Judge only on major, graduation year and attended events. Never use or guess anything else about a person.
+- Use profileId and eventId values exactly as given. Never invent one.
+- If nobody fits, return an empty list.
+
+Reply with only this JSON object, no other text:
+{ "matches": [{ "profileId": string, "reason": string, "evidenceEventIds": string[] }] }`;
+}
