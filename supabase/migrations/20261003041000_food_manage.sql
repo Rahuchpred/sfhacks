@@ -71,7 +71,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce(p_rescue.created_by = auth.uid(), false)
-      or public.can_manage_event(p_rescue.event_id);
+      or public.can_staff_event(p_rescue.event_id);
 $$;
 
 -- "Food is gone": the post leaves the Free food page and its open holds are cancelled.
@@ -215,7 +215,7 @@ as $$
             where c.rescue_id = r.id and c.picked_up_at is not null)
   from public.food_rescues r
   left join public.events e on e.id = r.event_id
-  where r.created_by = auth.uid() or public.can_manage_event(r.event_id)
+  where r.created_by = auth.uid() or public.can_staff_event(r.event_id)
   order by r.created_at desc;
 $$;
 
@@ -230,7 +230,7 @@ as $$
   select e.* from public.events e
   where e.starts_at <= now()
     and e.ends_at > now() - interval '12 hours'
-    and public.can_manage_event(e.id)
+    and public.can_staff_event(e.id)
   order by e.starts_at desc;
 $$;
 
