@@ -416,7 +416,8 @@ const Map = forwardRef<MapRef, MapProps>(function Map(
         ref={containerRef}
         className={cn("relative h-full w-full", className)}
       >
-        {(!isLoaded || loading) && <DefaultLoader />}
+        {/* Gator Radar change: the loader goes once the style is in, not after every tile. */}
+        {(!isStyleLoaded || loading) && <DefaultLoader />}
         {/* SSR-safe: children render only when map is loaded on client */}
         {mapInstance && children}
       </div>
@@ -863,7 +864,8 @@ function ControlButton({
       className={cn(
         "flex size-8 items-center justify-center transition-colors",
         "first:rounded-t-md last:rounded-b-md",
-        "hover:bg-accent dark:hover:bg-accent/40",
+        // Gator Radar change: gold (accent) means food here, so controls hover grey.
+        "hover:bg-muted",
         "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
         "disabled:pointer-events-none disabled:opacity-50",
       )}
@@ -895,7 +897,8 @@ function MapControls({
   }, [map]);
 
   const handleResetBearing = useCallback(() => {
-    map?.resetNorthPitch({ duration: 300 });
+    // Gator Radar change: keep the tilt, so the 3D switch stays true.
+    map?.resetNorth({ duration: 300 });
   }, [map]);
 
   const handleLocate = useCallback(() => {
