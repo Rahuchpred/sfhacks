@@ -8,6 +8,7 @@ import {
   ChartColumn,
   CircleUser,
   ClipboardCheck,
+  DoorOpen,
   ClipboardList,
   MessagesSquare,
   FileSpreadsheet,
@@ -67,6 +68,7 @@ const EXPLORE: NavGroup = {
     { href: "/map", label: "Map", icon: MapIcon },
     { href: "/food", label: "Free food", icon: Utensils },
     { href: "/clubs", label: "Clubs", icon: Building2 },
+    { href: "/rooms", label: "Free rooms", icon: DoorOpen },
     { href: "/safety", label: "Safety notices", icon: ShieldAlert, exact: true },
   ],
 };

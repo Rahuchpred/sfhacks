@@ -68,7 +68,7 @@ const CLUB_ROLES: Role[] = ["student", "faculty"];
 const RULES: [RegExp, Access][] = [
   [/^\/(welcome)?$/, "open"],
   [/^\/safety\/alerts(\/|$)/, ["safety"]],
-  [/^\/(map|food|clubs|safety|events)(\/|$)/, "open"],
+  [/^\/(map|food|clubs|safety|events|rooms)(\/|$)/, "open"],
   [/^\/(profile|tickets|messages)(\/|$)/, "account"],
   [/^\/help\/(new|mine)(\/|$)/, ["faculty"]],
   [/^\/faculty(\/|$)/, ["faculty"]],
