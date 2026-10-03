@@ -204,6 +204,7 @@ Rules:
 - "insights": 3 to 5 findings a club officer could act on. Each has a short "title" (2 to 5 words) and a "detail" of one or two plain sentences that quotes the specific numbers behind it.
 - Look for: which events, weekdays or times drew the best turnout, the gap between sign-ups and check-ins, which majors or years show up and which are missing, whether food changes turnout, how much food was left over, and cost per attendee.
 - If leftover food is consistent, say how much less to order next time, using the leftover numbers.
+- "hostNotes" are the club's own notes after each event (what they bought, what was left, what ran out). Use them to suggest a better food quantity and kind for the next event, and name the note you used.
 - Describe patterns, not causes. With this few events, say "events with food drew more check-ins", never "food increases attendance".
 - Use only the numbers given. Never invent or estimate a number. If the data is too thin to support a finding (for example one event), say so plainly instead of guessing.
 - "nextEvent": one concrete suggestion for the next event (day, time, food amount or audience), with the reason.

@@ -30,6 +30,7 @@ import { HostGate } from "./host-states";
 import { eventPhase, formatEventTime, placeLabel, turnoutRate, type EventPhase } from "./host-utils";
 import { useHostEvent } from "./use-host-event";
 import { AnnounceButton } from "@/components/messages/announce-button";
+import { EventNotes } from "./event-notes";
 
 const countFormat = new Intl.NumberFormat();
 
@@ -271,6 +272,8 @@ function ManageEvent({
               </Link>
             )}
           </div>
+
+          {canManage && phase !== "upcoming" && <EventNotes eventId={event.id} />}
 
           {showLeftover && (
             <Link

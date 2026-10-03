@@ -37,6 +37,7 @@ import type {
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { CountBars, DonutChart, PercentBars, TurnoutChart } from "./charts";
+import { listHostNotes } from "@/lib/db-notes";
 
 // Mobbin reference: Calendly's Analytics page (filters and Export in one row,
 // a row of stat cards, then a grid of chart cards, then a table).
@@ -165,8 +166,9 @@ export function AnalyticsDashboard() {
     setThinking(true);
     setInsightsError(null);
     try {
+      const hostNotes = await listHostNotes(analytics.events.map((event) => event.id)).catch(() => []);
       const result = await postJson<HostInsightsResponse>("/api/ai/host-insights", {
-        stats: aiStats(analytics),
+        stats: { ...aiStats(analytics), hostNotes },
       });
       setInsights(result);
       setInsightsFor(scopeKey);
